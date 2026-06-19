@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mindmap Interaktif — I'm ur Biny / TrashScan</title>
+<style>
+  :root{
+    --bg:#fbfbf3; --panel:#f4f3e9; --panel2:#ffffff; --line:#d6d2c4;
+    --text:#2b2b2b; --muted:#857f6f; --accent:#e8590c;
+    --screen:#1971c2; --phase:#f08c00; --good:#2f9e44; --error:#e03131;
+    --provider:#2f9e44; --service:#e8590c; --model:#9c36b5;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:var(--bg);
+    background-image:radial-gradient(#e9e6d6 1px, transparent 1px);
+    background-size:22px 22px;
+    color:var(--text);
+    font-family:"Comic Sans MS","Comic Sans","Segoe Print","Bradley Hand","Chalkboard SE","Marker Felt",cursive;
+    display:flex;flex-direction:column;height:100vh;overflow:hidden;
+  }
+  header{padding:11px 20px;border-bottom:2px solid var(--text);background:#f4f3e9;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  header h1{font-size:19px;margin:0;}
+  header .sub{font-size:12.5px;color:var(--muted);}
+  .tools{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .btn{font-family:inherit;font-size:12.5px;border:2px solid var(--text);background:var(--panel2);color:var(--text);
+       border-radius:11px 9px 12px 8px;padding:6px 11px;cursor:pointer;filter:url(#rough);}
+  .btn:hover{background:#ffe8d6;}
+  select,input[type=search]{font-family:inherit;font-size:12.5px;border:2px solid var(--text);background:var(--panel2);
+       color:var(--text);border-radius:9px;padding:6px 9px;}
+  .legend{display:flex;gap:11px;flex-wrap:wrap;}
+  .legend .it{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);}
+  .sw{width:13px;height:13px;border-radius:4px;border:1.5px solid #0003;filter:url(#rough);}
+
+  .main{flex:1;display:flex;min-height:0;}
+  .canvas{flex:1;position:relative;overflow:hidden;cursor:grab;}
+  .canvas.grabbing{cursor:grabbing;}
+  svg#map{width:100%;height:100%;display:block;}
+
+  .link{fill:none;stroke-width:2.2;filter:url(#rough);}
+  .nbox{filter:url(#rough);stroke-width:2.2;}
+  .node{cursor:pointer;}
+  .node .nlabel{font-family:inherit;color:var(--text);line-height:1.2;padding:6px 9px;text-align:center;
+                display:flex;flex-direction:column;justify-content:center;height:100%;pointer-events:none;}
+  .node .nlabel .t{font-weight:700;font-size:13.5px;}
+  .node .nlabel .r{font-size:10.5px;color:var(--muted);margin-top:2px;}
+  .node.dim{opacity:.18;}
+  .node.hot .nbox{stroke-width:3.4;}
+  .node.sel .nbox{stroke:var(--accent);stroke-width:3.6;}
+  .badge-c{font-weight:700;font-size:12px;fill:#fff;}
+  .toggle{stroke-width:2;cursor:pointer;}
+
+  /* detail panel */
+  .detail{width:360px;min-width:360px;border-left:2px dashed var(--line);background:var(--panel);display:flex;flex-direction:column;}
+  .detail .dh{padding:15px 17px 11px;border-bottom:2px dashed var(--line);}
+  .detail .dh .chip{display:inline-block;font-size:10.5px;border:1.5px solid;border-radius:20px;padding:1px 9px;margin-bottom:7px;text-transform:uppercase;letter-spacing:.5px;}
+  .detail .dh h3{margin:0 0 4px;font-size:16px;}
+  .detail .dh .meta{font-size:11.5px;color:var(--muted);word-break:break-all;}
+  .dbody{overflow-y:auto;padding:13px 16px 30px;flex:1;font-size:13px;line-height:1.55;}
+  .dbody .sec{margin-bottom:14px;}
+  .dbody .sec h4{margin:0 0 5px;font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);}
+  .flowchip{display:inline-block;font-size:11.5px;border:2px solid var(--text);background:var(--panel2);border-radius:9px;
+            padding:4px 9px;margin:0 5px 6px 0;cursor:pointer;filter:url(#rough);}
+  .flowchip:hover{background:#ffe8d6;}
+  .empty{color:var(--muted);text-align:center;padding:36px 18px;line-height:1.6;}
+  .stepline{display:flex;gap:9px;margin-bottom:7px;}
+  .stepline .n{width:21px;height:21px;min-width:21px;border-radius:50%;background:var(--text);color:#fff;font-size:11px;
+               display:flex;align-items:center;justify-content:center;filter:url(#rough);}
+  .stepline .b{font-size:12px;line-height:1.4;}
+  .stepline .b .e{font-weight:700;} .stepline .b .a{color:#b34700;font-size:11.5px;}
+  .hint{position:absolute;bottom:10px;left:14px;font-size:11.5px;color:var(--muted);background:#fbfbf3cc;padding:5px 9px;border-radius:8px;}
+  ::-webkit-scrollbar{width:10px;height:10px;} ::-webkit-scrollbar-thumb{background:#cfcabb;border-radius:6px;}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><filter id="rough" x="-5%" y="-5%" width="110%" height="110%">
+  <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="9" result="n"/>
+  <feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/>
+</filter></svg>
+
+<header>
+  <div>
+    <h1>Mindmap Interaktif ✎ Alur Aplikasi</h1>
+    <div class="sub">I'm ur Biny / TrashScan — klik node untuk ciutkan/perluas & lihat detail. Gulir = zoom, seret = geser.</div>
+  </div>
+  <div class="tools">
+    <input type="search" id="search" placeholder="cari komponen…" />
+    <select id="flowSel"><option value="">— sorot alur —</option></select>
+    <button class="btn" id="expandAll">Perluas semua</button>
+    <button class="btn" id="collapseAll">Ringkas</button>
+    <button class="btn" id="fit">Pas layar</button>
+  </div>
+</header>
+
+<div class="main">
+  <div class="canvas" id="canvas">
+    <svg id="map"><g id="viewport"></g></svg>
+    <div class="hint" id="legendWrap"></div>
+  </div>
+  <aside class="detail">
+    <div class="dh">
+      <span class="chip" id="dChip" style="display:none"></span>
+      <h3 id="dTitle">Pilih sebuah node</h3>
+      <div class="meta" id="dMeta"></div>
+    </div>
+    <div class="dbody" id="dBody">
+      <div class="empty">Klik node di mindmap untuk melihat detail: berkas, metode, deskripsi, dan di alur mana ia muncul.<br><br>Gunakan <b>— sorot alur —</b> di atas untuk menyalakan satu alur kerja lengkap (langkah demi langkah).</div>
+    </div>
+  </aside>
+</div>
+
+<script type="application/json" id="flowdata">{"meta": {"app": "I'm ur Biny / TrashScan", "description": "Dokumentasi alur kerja antar paket & komponen aplikasi Flutter pemilah sampah berbasis AI (kiosk iPad, inferensi on-device).", "designTarget": "1194x834 (iPad landscape)", "stateManagement": "Riverpod (StateNotifier)", "navigation": "GoRouter (semua rute di lib/app.dart, tanpa argumen rute)", "generated": "2026-06-16", "note": "Inferensi utama berjalan on-device (RT-DETR + TFLite). GeminiService adalah eskalasi cloud OPSIONAL yang aktif hanya bila GEMINI_API_KEY diisi di .env."}, "groups": [{"id": "screen", "label": "Layar (Screens)", "color": "#6C8EF5"}, {"id": "provider", "label": "Provider (Riverpod)", "color": "#27AE8F"}, {"id": "service", "label": "Service (Logika & ML)", "color": "#E08E2B"}, {"id": "model", "label": "Model & Penyimpanan", "color": "#B265D4"}], "components": [{"id": "idle", "group": "screen", "label": "IdleScreen", "route": "/", "file": "lib/features/idle/presentation/idle_screen.dart", "desc": "Screensaver kiosk. Ketuk untuk memulai sesi."}, {"id": "welcome", "group": "screen", "label": "WelcomeScreen", "route": "/welcome", "file": "lib/features/welcome/presentation/welcome_screen.dart", "desc": "Input nama pengguna & mulai sesi."}, {"id": "onboarding", "group": "screen", "label": "OnboardingScreen", "route": "/onboarding", "file": "lib/features/onboarding/presentation/onboarding_screen.dart", "desc": "Tutorial 4 langkah."}, {"id": "mode_select", "group": "screen", "label": "ModeSelectScreen", "route": "/mode-select", "file": "lib/features/mode_select/presentation/mode_select_screen.dart", "desc": "Pilih mode pindai: tunggal vs campuran."}, {"id": "category_select", "group": "screen", "label": "CategorySelectScreen", "route": "/category-select", "file": "lib/features/category_select/presentation/category_select_screen.dart", "desc": "Pra-pilih kategori yang diharapkan (opsional)."}, {"id": "camera_guide", "group": "screen", "label": "CameraGuideScreen", "route": "/camera-guide", "file": "lib/features/camera_guide/presentation/camera_guide_screen.dart", "desc": "Panduan posisi objek + deteksi real-time di preview."}, {"id": "countdown", "group": "screen", "label": "CountdownScreen", "route": "/countdown", "file": "lib/features/countdown/presentation/countdown_screen.dart", "desc": "Hitung mundur 3-2-1 sebelum tangkap otomatis."}, {"id": "scanning", "group": "screen", "label": "ScanningScreen", "route": "/scanning", "file": "lib/features/scanning/presentation/scanning_screen.dart", "desc": "Tangkap foto -> pratinjau -> jalankan klasifikasi ML (3 fase)."}, {"id": "result", "group": "screen", "label": "ResultScreen", "route": "/result", "file": "lib/features/result/presentation/result_screen.dart", "desc": "Hasil deteksi tunggal: kategori + info pembuangan."}, {"id": "multi_result", "group": "screen", "label": "MultiResultScreen", "route": "/multi-result", "file": "lib/features/multi_result/presentation/multi_result_screen.dart", "desc": "Hasil mode campuran: kartu per-item + koreksi."}, {"id": "unknown_detected", "group": "screen", "label": "UnknownDetectedScreen", "route": "/unknown-detected", "file": "lib/features/unknown_detected/presentation/unknown_detected_screen.dart", "desc": "Item belum dikenal -> tawarkan analisis AI/koreksi manual."}, {"id": "analyzing", "group": "screen", "label": "AnalyzingScreen", "route": "/analyzing", "file": "lib/features/analyzing/presentation/analyzing_screen.dart", "desc": "Layar loading saat eskalasi Gemini berjalan."}, {"id": "conclusion_new", "group": "screen", "label": "ConclusionNewScreen", "route": "/conclusion-new", "file": "lib/features/conclusion_new/presentation/conclusion_new_screen.dart", "desc": "Konfirmasi kategori baru ditemukan (+25 XP)."}, {"id": "conclusion_existing", "group": "screen", "label": "ConclusionExistingScreen", "route": "/conclusion-existing", "file": "lib/features/conclusion_existing/presentation/conclusion_existing_screen.dart", "desc": "Konfirmasi kategori yang sudah ada (+10 XP)."}, {"id": "dataset_saved", "group": "screen", "label": "DatasetSavedScreen", "route": "/dataset-saved", "file": "lib/features/dataset_saved/presentation/dataset_saved_screen.dart", "desc": "Notifikasi hasil disimpan ke dataset on-device."}, {"id": "continue_session", "group": "screen", "label": "ContinueSessionScreen", "route": "/continue-session", "file": "lib/features/continue_session/presentation/continue_session_screen.dart", "desc": "Pilihan: lanjut pindai atau akhiri sesi."}, {"id": "thank_you", "group": "screen", "label": "ThankYouScreen", "route": "/thank-you", "file": "lib/features/thank_you/presentation/thank_you_screen.dart", "desc": "Sesi selesai: total XP, scan, kategori unik."}, {"id": "manual_correction", "group": "screen", "label": "ManualCorrectionScreen", "route": "/manual-correction", "file": "lib/features/manual_correction/presentation/manual_correction_screen.dart", "desc": "Grid 6 kategori untuk override prediksi AI."}, {"id": "out_of_frame", "group": "screen", "label": "OutOfFrameScreen", "route": "/out-of-frame", "file": "lib/features/out_of_frame/presentation/out_of_frame_screen.dart", "desc": "Error: objek keluar dari batas frame."}, {"id": "too_large", "group": "screen", "label": "TooLargeScreen", "route": "/too-large", "file": "lib/features/too_large/presentation/too_large_screen.dart", "desc": "Error: objek terlalu besar untuk frame."}, {"id": "low_confidence", "group": "screen", "label": "LowConfidenceScreen", "route": "/low-confidence", "file": "lib/features/low_confidence/presentation/low_confidence_screen.dart", "desc": "Peringatan keyakinan 0.45-0.65 + 2 kandidat teratas."}, {"id": "mixed_attached", "group": "screen", "label": "MixedAttachedScreen", "route": "/mixed-attached", "file": "lib/features/mixed_attached/presentation/mixed_attached_screen.dart", "desc": "Error: beberapa objek bersentuhan/menumpuk."}, {"id": "mixed_partial", "group": "screen", "label": "MixedPartialScreen", "route": "/mixed-partial", "file": "lib/features/mixed_partial/presentation/mixed_partial_screen.dart", "desc": "Error: objek sebagian di luar batas (mode campuran)."}, {"id": "mixed_too_many", "group": "screen", "label": "MixedTooManyScreen", "route": "/mixed-too-many", "file": "lib/features/mixed_too_many/presentation/mixed_too_many_screen.dart", "desc": "Error: >5 objek terdeteksi, kurangi jumlah."}, {"id": "mixed_check", "group": "screen", "label": "MixedCheckScreen", "route": "/mixed-check", "file": "lib/features/mixed_check/presentation/mixed_check_screen.dart", "desc": "Peringatan: sebagian item perlu ditinjau manual."}, {"id": "feedback", "group": "screen", "label": "FeedbackScreen", "route": "/feedback", "file": "lib/features/feedback/presentation/feedback_screen.dart", "desc": "Formulir umpan balik pengguna."}, {"id": "scan_provider", "group": "provider", "label": "scanProvider (ScanNotifier)", "file": "lib/core/providers/scan_provider.dart", "desc": "Orkestrator klasifikasi: classifyImage, classifyWithGemini, classifyMultipleImages, classifyMultipleWithGemini, correctResult, saveToHistory, clearResult. Juga: capturedImageProvider, useGeminiProvider, selectedDetailIndexProvider, multiResultsProvider."}, {"id": "camera_provider", "group": "provider", "label": "cameraProvider (CameraNotifier)", "file": "lib/core/providers/camera_provider.dart", "desc": "initializeCamera, capturePhoto; isCameraReadyProvider."}, {"id": "session_provider", "group": "provider", "label": "sessionProvider (SessionNotifier)", "file": "lib/core/providers/session_provider.dart", "desc": "setName, addXP, addScan, addCorrection, addToHistory, resetSession; userNameProvider, xpProvider, scanCountProvider."}, {"id": "camera_guide_provider", "group": "provider", "label": "cameraGuideProvider (CameraGuideNotifier)", "file": "lib/core/providers/camera_guide_provider.dart", "desc": "startValidation, stopValidation; detectedObjectsProvider, scanRegionsProvider, scanSourceAspectRatioProvider."}, {"id": "app_provider", "group": "provider", "label": "app_provider (state global)", "file": "lib/core/providers/app_provider.dart", "desc": "scanModeProvider ('single'|'mixed'), selectedCategoryProvider, rescanProvider."}, {"id": "local_dataset_provider", "group": "provider", "label": "localDatasetProvider", "file": "lib/core/providers/local_dataset_provider.dart", "desc": "Akses singleton LocalDatasetService."}, {"id": "camera_service", "group": "service", "label": "CameraService", "file": "lib/core/services/camera_service.dart", "desc": "initialize, requestPermission, capturePhoto, captureSmallFrame, dispose."}, {"id": "rtdetr_service", "group": "service", "label": "RTDETRService", "file": "lib/core/services/rtdetr_service.dart", "desc": "Detektor objek RT-DETR (640x640, conf 0.35, NMS 0.45, maks 5). loadModel, detectObjects, detectSingle."}, {"id": "tflite_service", "group": "service", "label": "TFLiteService", "file": "lib/core/services/tflite_service.dart", "desc": "Classifier (256x256, normalisasi ImageNet, brightening adaptif). loadModel, classifyImage, classifyMultipleImages, classifyFrameQuick."}, {"id": "object_validator_service", "group": "service", "label": "ObjectValidatorService", "file": "lib/core/services/object_validator_service.dart", "desc": "Validasi posisi/ukuran objek berbasis luminance. validate, validateMixed, detectObjectRegions."}, {"id": "gemini_service", "group": "service", "label": "GeminiService (cloud, opsional)", "file": "lib/core/services/gemini_service.dart", "desc": "Eskalasi cloud OPSIONAL via flutter_dotenv. Gerbang: isConfigured (GEMINI_API_KEY ada & bukan placeholder). classifyImage, classifyMultiple."}, {"id": "local_dataset_service", "group": "service", "label": "LocalDatasetService", "file": "lib/core/services/local_dataset_service.dart", "desc": "Cache on-device (Hive + file). init, saveEntry, findMatch (hash + pHash), updateCategoryForImage."}, {"id": "session_service", "group": "service", "label": "SessionService", "file": "lib/core/services/session_service.dart", "desc": "Persistensi sesi via SharedPreferences. loadSession, saveSession, resetSession. XP: baru=25, ada=10, koreksi=2."}, {"id": "waste_category", "group": "model", "label": "WasteCategory (enum)", "file": "lib/core/models/waste_category.dart", "desc": "Kaca(0), Kertas(1), Logam(2), Organik(3), Plastik(4), Residu(5) + lainnya. Metadata: warna, ikon, subtitle, langkah pembuangan, fakta edukasi."}, {"id": "scan_result", "group": "model", "label": "ScanResult", "file": "lib/core/models/scan_result.dart", "desc": "itemName, category, confidence, disposalInfo, isCorrected, originalCategory, allProbabilities, boundingBox, croppedImage."}, {"id": "user_session", "group": "model", "label": "UserSession", "file": "lib/core/models/user_session.dart", "desc": "userName, totalXP, scanCount, correctionCount, scanHistory + uniqueCategoryCount, averageConfidence, accuracyPercent."}, {"id": "storage_hive", "group": "model", "label": "Hive box + file gambar", "file": "(on-device)", "desc": "Penyimpanan dataset lokal: entri ber-hash + gambar JPG di disk."}, {"id": "storage_prefs", "group": "model", "label": "SharedPreferences", "file": "(on-device)", "desc": "Penyimpanan sesi pengguna (nama, XP, jumlah scan/koreksi)."}], "flows": [{"id": "boot", "title": "Boot & Mulai Sesi", "summary": "Dari screensaver kiosk hingga pemilihan mode pindai, termasuk pemuatan sesi tersimpan.", "steps": [{"from": "idle", "to": "session_provider", "type": "read", "action": "Muat sesi tersimpan", "detail": "Saat mount, SessionNotifier._loadSession() membaca sesi sebelumnya."}, {"from": "session_provider", "to": "session_service", "type": "call", "action": "loadSession()", "detail": "SessionService membaca dari SharedPreferences."}, {"from": "session_service", "to": "storage_prefs", "type": "persist", "action": "baca SharedPreferences", "detail": "Mengembalikan UserSession (nama, XP, scanCount)."}, {"from": "idle", "to": "welcome", "type": "navigate", "action": "ketuk layar", "detail": "context.go('/welcome')."}, {"from": "welcome", "to": "session_provider", "type": "call", "action": "setName(name)", "detail": "Simpan nama pengguna ke state sesi."}, {"from": "welcome", "to": "onboarding", "type": "navigate", "action": "lanjut", "detail": "context.go('/onboarding')."}, {"from": "onboarding", "to": "mode_select", "type": "navigate", "action": "selesai tutorial", "detail": "context.go('/mode-select')."}]}, {"id": "single_happy", "title": "Pindai Tunggal — Keyakinan Tinggi", "summary": "Jalur bahagia: pilih mode tunggal, tangkap, klasifikasi on-device (RT-DETR -> TFLite), tampilkan hasil, simpan.", "steps": [{"from": "mode_select", "to": "app_provider", "type": "call", "action": "scanModeProvider='single'", "detail": "Set mode pindai tunggal."}, {"from": "mode_select", "to": "category_select", "type": "navigate", "action": "lanjut", "detail": "context.go('/category-select')."}, {"from": "category_select", "to": "app_provider", "type": "call", "action": "selectedCategoryProvider", "detail": "Pra-pilih kategori (opsional)."}, {"from": "category_select", "to": "camera_guide", "type": "navigate", "action": "lanjut", "detail": "context.go('/camera-guide')."}, {"from": "camera_guide", "to": "camera_guide_provider", "type": "call", "action": "startValidation()", "detail": "Deteksi objek real-time di preview."}, {"from": "camera_guide_provider", "to": "object_validator_service", "type": "call", "action": "validate / detectObjectRegions", "detail": "Validasi posisi & ukuran berbasis luminance."}, {"from": "camera_guide", "to": "countdown", "type": "navigate", "action": "PINDAI SEKARANG", "detail": "context.go('/countdown')."}, {"from": "countdown", "to": "scanning", "type": "navigate", "action": "3-2-1 selesai", "detail": "context.go('/scanning')."}, {"from": "scanning", "to": "camera_provider", "type": "call", "action": "capturePhoto()", "detail": "Tangkap foto."}, {"from": "camera_provider", "to": "camera_service", "type": "call", "action": "capturePhoto()", "detail": "Ambil bytes JPEG dari kamera."}, {"from": "scanning", "to": "scan_provider", "type": "call", "action": "classifyImage(bytes)", "detail": "useGeminiProvider=false (on-device dulu). Simpan capturedImageProvider."}, {"from": "scan_provider", "to": "local_dataset_service", "type": "call", "action": "findMatch(bytes)", "detail": "Cek cache lokal lebih dulu (hash + pHash)."}, {"from": "scan_provider", "to": "rtdetr_service", "type": "call", "action": "detectSingle(bytes)", "detail": "Detektor primer RT-DETR jika model tersedia."}, {"from": "scan_provider", "to": "tflite_service", "type": "call", "action": "classifyImage(bytes)", "detail": "Fallback klasifikasi gambar penuh."}, {"from": "tflite_service", "to": "scan_result", "type": "produce", "action": "ScanResult", "detail": "category, confidence, disposalInfo (conf >= 0.65)."}, {"from": "scanning", "to": "result", "type": "navigate", "action": "keyakinan tinggi", "detail": "context.go('/result')."}, {"from": "result", "to": "scan_provider", "type": "read", "action": "scanResultProvider", "detail": "Tampilkan gambar + kategori + info."}, {"from": "result", "to": "scan_provider", "type": "call", "action": "saveToHistory()", "detail": "SELESAI -> simpan ke riwayat + dataset lokal."}, {"from": "scan_provider", "to": "local_dataset_service", "type": "persist", "action": "saveEntry(...)", "detail": "Simpan ke Hive + gambar ke disk."}, {"from": "local_dataset_service", "to": "storage_hive", "type": "persist", "action": "tulis entri", "detail": "Entri ber-hash + JPG."}, {"from": "result", "to": "session_provider", "type": "call", "action": "addScan(); addXP(+10)", "detail": "XP kategori yang sudah ada."}, {"from": "result", "to": "continue_session", "type": "navigate", "action": "SELESAI", "detail": "context.go('/continue-session')."}]}, {"id": "single_low", "title": "Pindai Tunggal — Keyakinan Rendah", "summary": "Hasil 0.45-0.65: tampilkan 2 kandidat, pengguna konfirmasi atau koreksi.", "steps": [{"from": "scanning", "to": "scan_provider", "type": "call", "action": "classifyImage(bytes)", "detail": "Hasil on-device."}, {"from": "scan_provider", "to": "scan_result", "type": "produce", "action": "ScanResult (0.45-0.65)", "detail": "Kategori terbaca tapi keyakinan rendah."}, {"from": "scanning", "to": "low_confidence", "type": "navigate", "action": "keyakinan rendah", "detail": "context.go('/low-confidence')."}, {"from": "low_confidence", "to": "scan_provider", "type": "read", "action": "scanResultProvider", "detail": "Tampilkan 2 kandidat teratas (allProbabilities)."}, {"from": "low_confidence", "to": "scan_provider", "type": "call", "action": "saveToHistory()", "detail": "YA, BENAR -> terima hasil."}, {"from": "low_confidence", "to": "session_provider", "type": "call", "action": "addScan(); addXP(+10)", "detail": "Simpan & lanjut."}, {"from": "low_confidence", "to": "continue_session", "type": "navigate", "action": "YA, BENAR", "detail": "context.go('/continue-session')."}, {"from": "low_confidence", "to": "manual_correction", "type": "navigate", "action": "KOREKSI", "detail": "context.go('/manual-correction')."}]}, {"id": "single_unknown_gemini", "title": "Tunggal — Tidak Dikenal -> Eskalasi Gemini (opsional)", "summary": "Keyakinan <0.45: tawarkan analisis cloud Gemini (hanya bila GEMINI_API_KEY diisi), lalu konfirmasi.", "steps": [{"from": "scanning", "to": "scan_provider", "type": "call", "action": "classifyImage(bytes)", "detail": "Hasil on-device < 0.45 -> lainnya."}, {"from": "scan_provider", "to": "scan_result", "type": "produce", "action": "ScanResult (lainnya)", "detail": "Belum dikenal."}, {"from": "scanning", "to": "unknown_detected", "type": "navigate", "action": "tidak dikenal", "detail": "context.go('/unknown-detected')."}, {"from": "unknown_detected", "to": "gemini_service", "type": "read", "action": "isConfigured", "detail": "geminiAvailableProvider menentukan apakah tombol AI tampil."}, {"from": "unknown_detected", "to": "scan_provider", "type": "call", "action": "useGeminiProvider=true", "detail": "ANALISIS DENGAN AI."}, {"from": "unknown_detected", "to": "analyzing", "type": "navigate", "action": "ANALISIS DENGAN AI", "detail": "context.go('/analyzing')."}, {"from": "analyzing", "to": "scan_provider", "type": "call", "action": "classifyWithGemini(bytes)", "detail": "Jalankan eskalasi cloud."}, {"from": "scan_provider", "to": "gemini_service", "type": "call", "action": "classifyImage(bytes)", "detail": "Kirim JPEG base64 ke Gemini, parse JSON."}, {"from": "gemini_service", "to": "scan_result", "type": "produce", "action": "ScanResult", "detail": "_lastUsedGemini=true."}, {"from": "analyzing", "to": "app_provider", "type": "read", "action": "selectedCategoryProvider", "detail": "Cocokkan dengan kategori pra-pilih."}, {"from": "analyzing", "to": "conclusion_new", "type": "navigate", "action": "kategori baru", "detail": "Tidak cocok pra-pilih -> /conclusion-new (+25 XP)."}, {"from": "analyzing", "to": "conclusion_existing", "type": "navigate", "action": "kategori ada", "detail": "Cocok pra-pilih -> /conclusion-existing (+10 XP)."}, {"from": "conclusion_new", "to": "dataset_saved", "type": "navigate", "action": "LANJUTKAN", "detail": "context.go('/dataset-saved')."}, {"from": "dataset_saved", "to": "continue_session", "type": "navigate", "action": "lanjut", "detail": "context.go('/continue-session')."}]}, {"id": "manual_correction", "title": "Koreksi Manual", "summary": "Pengguna override prediksi AI lewat grid 6 kategori; koreksi disimpan ke dataset lokal.", "steps": [{"from": "result", "to": "manual_correction", "type": "navigate", "action": "Koreksi manual", "detail": "Dari ResultScreen atau MultiResultScreen."}, {"from": "manual_correction", "to": "scan_provider", "type": "read", "action": "scanResultProvider", "detail": "Tampilkan tebakan AI saat ini (badge)."}, {"from": "manual_correction", "to": "waste_category", "type": "read", "action": "6 kategori", "detail": "Grid: Kaca, Kertas, Logam, Organik, Plastik, Residu."}, {"from": "manual_correction", "to": "scan_provider", "type": "call", "action": "correctResult(newCategory)", "detail": "Buat salinan terkoreksi (isCorrected=true)."}, {"from": "scan_provider", "to": "local_dataset_service", "type": "persist", "action": "updateCategoryForImage()", "detail": "Perbarui label gambar di cache."}, {"from": "local_dataset_service", "to": "storage_hive", "type": "persist", "action": "tulis ulang entri", "detail": "Kategori baru tersimpan."}, {"from": "manual_correction", "to": "session_provider", "type": "call", "action": "addCorrection(); addXP(+2)", "detail": "Catat koreksi."}, {"from": "manual_correction", "to": "continue_session", "type": "navigate", "action": "SIMPAN KOREKSI", "detail": "context.go('/continue-session') (atau kembali ke multi-result)."}]}, {"id": "mixed_happy", "title": "Pindai Campuran — Jalur Bahagia", "summary": "Mode campuran: deteksi banyak objek (RT-DETR / fallback validator+TFLite), tampilkan kartu per-item.", "steps": [{"from": "mode_select", "to": "app_provider", "type": "call", "action": "scanModeProvider='mixed'", "detail": "Set mode campuran."}, {"from": "mode_select", "to": "category_select", "type": "navigate", "action": "lanjut", "detail": "context.go('/category-select')."}, {"from": "category_select", "to": "camera_guide", "type": "navigate", "action": "lanjut", "detail": "Preview deteksi multi-objek."}, {"from": "camera_guide", "to": "camera_guide_provider", "type": "call", "action": "startValidation() (mixed)", "detail": "Label status per-objek."}, {"from": "camera_guide", "to": "scanning", "type": "navigate", "action": "PINDAI -> countdown", "detail": "Lewat countdown ke /scanning."}, {"from": "scanning", "to": "scan_provider", "type": "call", "action": "classifyMultipleImages(bytes)", "detail": "Klasifikasi banyak objek."}, {"from": "scan_provider", "to": "rtdetr_service", "type": "call", "action": "detectObjects(bytes)", "detail": "Deteksi semua objek (maks 5)."}, {"from": "scan_provider", "to": "object_validator_service", "type": "call", "action": "detectObjectRegions()", "detail": "Fallback bila RT-DETR tak tersedia."}, {"from": "scan_provider", "to": "tflite_service", "type": "call", "action": "classifyMultipleImages(bytes, regions)", "detail": "Klasifikasi tiap crop."}, {"from": "scan_provider", "to": "local_dataset_service", "type": "call", "action": "findMatch(crop)", "detail": "Perkaya per-item dari cache."}, {"from": "tflite_service", "to": "scan_result", "type": "produce", "action": "List<ScanResult>", "detail": "Disimpan di multiResultsProvider."}, {"from": "scanning", "to": "multi_result", "type": "navigate", "action": "hasil siap", "detail": "context.go('/multi-result')."}, {"from": "multi_result", "to": "scan_provider", "type": "read", "action": "multiResultsProvider", "detail": "Carousel kartu per-item."}, {"from": "multi_result", "to": "scan_provider", "type": "call", "action": "saveMultiToLocalDataset()", "detail": "SELESAI -> simpan semua item."}, {"from": "scan_provider", "to": "local_dataset_service", "type": "persist", "action": "saveEntry per item", "detail": "Tulis ke Hive + disk."}, {"from": "multi_result", "to": "session_provider", "type": "call", "action": "addScan(); addXP(...)", "detail": "XP per item."}, {"from": "multi_result", "to": "continue_session", "type": "navigate", "action": "SELESAI", "detail": "context.go('/continue-session')."}]}, {"id": "mixed_gemini", "title": "Campuran — Analisis Ulang Gemini (opsional)", "summary": "Dari MultiResultScreen, 'Pindai Lagi' mengirim ulang ke Gemini untuk deteksi + bbox semua objek.", "steps": [{"from": "multi_result", "to": "gemini_service", "type": "read", "action": "isConfigured", "detail": "Tombol cloud aktif hanya bila API key ada."}, {"from": "multi_result", "to": "scan_provider", "type": "call", "action": "useGeminiProvider=true; classifyMultipleWithGemini(bytes)", "detail": "reanalyzeMultiIndexProvider=null."}, {"from": "scan_provider", "to": "gemini_service", "type": "call", "action": "classifyMultiple(bytes)", "detail": "Deteksi semua objek + bbox ternormalisasi."}, {"from": "gemini_service", "to": "scan_result", "type": "produce", "action": "List<ScanResult>", "detail": "Crop tiap item per bbox; _lastUsedGemini=true."}, {"from": "scan_provider", "to": "multi_result", "type": "navigate", "action": "hasil baru", "detail": "Kembali ke MultiResultScreen dengan hasil segar."}]}, {"id": "edge_cases", "title": "Validasi & Kasus Tepi", "summary": "ObjectValidatorService / RT-DETR mendeteksi masalah posisi/jumlah -> rute error spesifik -> pindai ulang.", "steps": [{"from": "camera_guide", "to": "object_validator_service", "type": "call", "action": "validate / validateMixed", "detail": "Cek ukuran, batas, jumlah, tumpang tindih."}, {"from": "object_validator_service", "to": "scanning", "type": "produce", "action": "ObjectValidation / MixedObjectValidation", "detail": "Status menentukan rute."}, {"from": "scanning", "to": "too_large", "type": "navigate", "action": "tooLarge", "detail": "Objek terlalu besar -> /too-large."}, {"from": "scanning", "to": "out_of_frame", "type": "navigate", "action": "objectOutsideBoundary", "detail": "Objek keluar frame -> /out-of-frame."}, {"from": "scanning", "to": "mixed_attached", "type": "navigate", "action": "objectsOverlapping", "detail": "Objek bersentuhan -> /mixed-attached."}, {"from": "scanning", "to": "mixed_partial", "type": "navigate", "action": "objectOutsideBoundary (mixed)", "detail": "Sebagian di luar batas -> /mixed-partial."}, {"from": "scanning", "to": "mixed_too_many", "type": "navigate", "action": "tooManyObjects", "detail": ">5 objek -> /mixed-too-many."}, {"from": "scanning", "to": "mixed_check", "type": "navigate", "action": "sebagian ragu", "detail": "Perlu tinjauan -> /mixed-check."}, {"from": "too_large", "to": "camera_guide", "type": "navigate", "action": "PINDAI ULANG", "detail": "Kembali ke panduan kamera."}]}, {"id": "cache_hit", "title": "Jalur Cepat — Cache Dataset Lokal", "summary": "Bila gambar mirip pernah dipindai, LocalDatasetService mengembalikan hasil instan tanpa inferensi ML.", "steps": [{"from": "scanning", "to": "scan_provider", "type": "call", "action": "classifyImage(bytes)", "detail": "Mulai klasifikasi."}, {"from": "scan_provider", "to": "local_dataset_service", "type": "call", "action": "findMatch(bytes)", "detail": "Bandingkan hash + pHash (jarak Hamming <= 2)."}, {"from": "local_dataset_service", "to": "storage_hive", "type": "read", "action": "baca entri", "detail": "Cari kecocokan di Hive."}, {"from": "local_dataset_service", "to": "scan_result", "type": "produce", "action": "ScanResult (confidence=1.0)", "detail": "Hasil dari cache, lewati RT-DETR/TFLite/Gemini."}, {"from": "scan_provider", "to": "result", "type": "navigate", "action": "tampilkan hasil", "detail": "Langsung ke ResultScreen."}]}, {"id": "session_end", "title": "Akhiri Sesi & Persistensi", "summary": "Selesai sesi -> simpan UserSession, tampilkan statistik, kembali ke idle.", "steps": [{"from": "continue_session", "to": "scan_provider", "type": "call", "action": "clearResult()", "detail": "LANJUT PINDAI -> bersihkan & kembali ke /mode-select."}, {"from": "continue_session", "to": "mode_select", "type": "navigate", "action": "LANJUT PINDAI", "detail": "context.go('/mode-select')."}, {"from": "continue_session", "to": "session_provider", "type": "call", "action": "addScan()", "detail": "SELESAI SESI."}, {"from": "session_provider", "to": "session_service", "type": "call", "action": "saveSession(state)", "detail": "Persist UserSession."}, {"from": "session_service", "to": "storage_prefs", "type": "persist", "action": "tulis SharedPreferences", "detail": "Nama, XP, jumlah scan/koreksi."}, {"from": "continue_session", "to": "thank_you", "type": "navigate", "action": "SELESAI SESI", "detail": "context.go('/thank-you')."}, {"from": "thank_you", "to": "user_session", "type": "read", "action": "statistik sesi", "detail": "totalXP, scanCount, uniqueCategoryCount, accuracyPercent."}, {"from": "thank_you", "to": "idle", "type": "navigate", "action": "ketuk", "detail": "context.go('/') kembali ke screensaver."}]}]}</script>
+<script type="application/json" id="minddata">{"label": "I'm ur Biny / TrashScan\nAlur Aplikasi", "kind": "root", "children": [{"label": "① Mulai Sesi", "kind": "phase", "note": "Pengguna membangunkan kiosk dan memperkenalkan diri.", "children": [{"label": "Idle", "kind": "screen", "cid": "idle"}, {"label": "Welcome", "kind": "screen", "cid": "welcome"}, {"label": "Onboarding", "kind": "screen", "cid": "onboarding"}]}, {"label": "② Pilih & Bidik", "kind": "phase", "note": "Pilih mode, kategori, lalu posisikan objek di kamera.", "children": [{"label": "Mode Select", "kind": "screen", "cid": "mode_select"}, {"label": "Category Select", "kind": "screen", "cid": "category_select"}, {"label": "app_provider\nstate global", "kind": "provider", "cid": "app_provider"}, {"label": "Camera Guide", "kind": "screen", "cid": "camera_guide", "children": [{"label": "cameraGuideProvider", "kind": "provider", "cid": "camera_guide_provider", "children": [{"label": "ObjectValidatorService", "kind": "service", "cid": "object_validator_service"}]}]}, {"label": "Countdown", "kind": "screen", "cid": "countdown"}]}, {"label": "③ Pindai & Klasifikasi", "kind": "phase", "note": "Inti aplikasi: tangkap foto lalu jalankan pipeline ML on-device.", "children": [{"label": "Scanning", "kind": "screen", "cid": "scanning", "children": [{"label": "cameraProvider", "kind": "provider", "cid": "camera_provider", "children": [{"label": "CameraService", "kind": "service", "cid": "camera_service"}]}, {"label": "scanProvider\norkestrator", "kind": "provider", "cid": "scan_provider", "children": [{"label": "RTDETRService", "kind": "service", "cid": "rtdetr_service"}, {"label": "TFLiteService", "kind": "service", "cid": "tflite_service"}, {"label": "ObjectValidatorService", "kind": "service", "cid": "object_validator_service"}, {"label": "GeminiService\n(opsional)", "kind": "service", "cid": "gemini_service"}, {"label": "LocalDatasetService", "kind": "service", "cid": "local_dataset_service", "children": [{"label": "Hive + disk", "kind": "model", "cid": "storage_hive"}]}, {"label": "ScanResult", "kind": "model", "cid": "scan_result"}, {"label": "WasteCategory", "kind": "model", "cid": "waste_category"}]}]}]}, {"label": "④ Hasil & Keputusan", "kind": "phase", "note": "Hasil dirutekan berdasarkan keyakinan & validasi.", "children": [{"label": "Result (single)", "kind": "good", "cid": "result"}, {"label": "Multi Result (mixed)", "kind": "good", "cid": "multi_result"}, {"label": "Low Confidence", "kind": "screen", "cid": "low_confidence"}, {"label": "Unknown", "kind": "screen", "cid": "unknown_detected", "children": [{"label": "Analyzing (Gemini)", "kind": "screen", "cid": "analyzing"}, {"label": "Conclusion New", "kind": "good", "cid": "conclusion_new"}, {"label": "Conclusion Existing", "kind": "good", "cid": "conclusion_existing"}, {"label": "Dataset Saved", "kind": "screen", "cid": "dataset_saved"}]}, {"label": "Manual Correction", "kind": "service", "cid": "manual_correction"}, {"label": "Edge cases", "kind": "group", "note": "Layar error validasi objek; semua menawarkan 'pindai ulang'.", "children": [{"label": "Out of Frame", "kind": "error", "cid": "out_of_frame"}, {"label": "Too Large", "kind": "error", "cid": "too_large"}, {"label": "Mixed Attached", "kind": "error", "cid": "mixed_attached"}, {"label": "Mixed Partial", "kind": "error", "cid": "mixed_partial"}, {"label": "Mixed Too Many", "kind": "error", "cid": "mixed_too_many"}, {"label": "Mixed Check", "kind": "error", "cid": "mixed_check"}]}]}, {"label": "⑤ Selesai Sesi", "kind": "phase", "note": "Tutup sesi, simpan progres, tampilkan statistik.", "children": [{"label": "Continue Session", "kind": "screen", "cid": "continue_session"}, {"label": "Thank You", "kind": "good", "cid": "thank_you"}, {"label": "sessionProvider", "kind": "provider", "cid": "session_provider", "children": [{"label": "SessionService", "kind": "service", "cid": "session_service", "children": [{"label": "SharedPreferences", "kind": "model", "cid": "storage_prefs"}]}, {"label": "UserSession", "kind": "model", "cid": "user_session"}]}, {"label": "Feedback", "kind": "screen", "cid": "feedback"}]}]}</script>
+<script>
+const SVGNS="http://www.w3.org/2000/svg", XHTML="http://www.w3.org/1999/xhtml";
+const FLOW = JSON.parse(document.getElementById('flowdata').textContent);
+const MINDRAW = JSON.parse(document.getElementById('minddata').textContent);
+const comp = {}; FLOW.components.forEach(c=>comp[c.id]=c);
+const KCOLOR = {root:'#e8590c',phase:'#f08c00',screen:'#1971c2',good:'#2f9e44',error:'#e03131',provider:'#2f9e44',service:'#e8590c',model:'#9c36b5',group:'#495057'};
+const KBG = {root:'#ffd8a8',phase:'#ffec99',screen:'#a5d8ff',good:'#b2f2bb',error:'#ffc9c9',provider:'#d3f9d8',service:'#ffe8cc',model:'#eebefa',group:'#e9ecef'};
+const KLABEL = {root:'Akar',phase:'Fase',screen:'Layar',good:'Hasil',error:'Error',provider:'Provider',service:'Service',model:'Model',group:'Grup'};
+
+// ---- build node objects with ids + parent links ----
+let _id=0, nodeById={};
+function build(n, parent){
+  const id = n.cid ? ('c_'+n.cid) : ('g_'+(_id++));
+  const o = {id, cid:n.cid||null, label:n.label, kind:n.kind, note:n.note||null,
+             parent, _collapsed:false, children:[]};
+  nodeById[id]=o;
+  (n.children||[]).forEach(c=>o.children.push(build(c,o)));
+  return o;
+}
+const ROOT = build(MINDRAW, null);
+// collapse deep nodes initially (keep phases open, ringkas anak-cabang dalam)
+function initCollapse(n, depth){ if(depth>=2 && n.children.length) n._collapsed=true; n.children.forEach(c=>initCollapse(c,depth+1)); }
+initCollapse(ROOT,0);
+
+// ---- layout (tidy tree, horizontal) ----
+const COLW=290, ROWH=70;
+function lines(label){ return label.split('\n'); }
+function nodeH(n){ return 30 + lines(n.label).length*16; }
+function nodeW(n){ return n.kind==='root'?250:(n.kind==='phase'?210:230); }
+let slot;
+function layout(n, depth){
+  n.depth=depth; n.x=depth*COLW;
+  const kids = n._collapsed?[]:n.children;
+  if(!kids.length){ n.y=slot*ROWH; slot++; }
+  else { kids.forEach(k=>layout(k,depth+1)); n.y=(kids[0].y+kids[kids.length-1].y)/2; }
+}
+function relayout(){ slot=0; layout(ROOT,0); }
+
+// ---- render ----
+const vp = document.getElementById('viewport');
+let view={tx:60,ty:40,scale:1};
+let selId=null, hotSet=null, dimAll=false;
+
+function visibleNodes(){
+  const out=[]; (function walk(n){ out.push(n); if(!n._collapsed) n.children.forEach(walk); })(ROOT); return out;
+}
+function applyView(){ vp.setAttribute('transform',`translate(${view.tx},${view.ty}) scale(${view.scale})`); }
+
+function render(){
+  relayout();
+  const nodes=visibleNodes();
+  let s='';
+  // links
+  nodes.forEach(n=>{
+    if(n._collapsed) return;
+    n.children.forEach(c=>{
+      const x1=n.x+nodeW(n), y1=n.y+nodeH(n)/2, x2=c.x, y2=c.y+nodeH(c)/2;
+      const mx=(x1+x2)/2;
+      const col=KCOLOR[c.kind]||'#888';
+      const dim = (hotSet && !(hotSet.has(n.id)&&hotSet.has(c.id)));
+      s+=`<path class="link" d="M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}" stroke="${col}" opacity="${dim?0.12:0.7}"/>`;
+    });
+  });
+  // nodes
+  nodes.forEach(n=>{
+    const w=nodeW(n),h=nodeH(n),L=lines(n.label);
+    const cls=['node'];
+    if(n.id===selId) cls.push('sel');
+    if(hotSet){ if(hotSet.has(n.id)) cls.push('hot'); else cls.push('dim'); }
+    const r=n.cid&&comp[n.cid]&&comp[n.cid].route?`<div class="r">${comp[n.cid].route}</div>`:'';
+    const hasKids=n.children.length>0;
+    s+=`<g class="${cls.join(' ')}" data-id="${n.id}" transform="translate(${n.x},${n.y})">
+      <rect class="nbox" width="${w}" height="${h}" rx="11" fill="${KBG[n.kind]}" stroke="${KCOLOR[n.kind]}"/>
+      <foreignObject width="${w}" height="${h}"><div xmlns="${XHTML}" class="nlabel"><div class="t">${L[0]}</div>${L.slice(1).map(x=>`<div class="r">${x}</div>`).join('')}${r}</div></foreignObject>
+      ${hasKids?`<g class="toggle" data-toggle="${n.id}" transform="translate(${w},${h/2})">
+        <circle r="11" fill="#fff" stroke="${KCOLOR[n.kind]}"/>
+        <text text-anchor="middle" dy="4.5" font-size="15" font-family="monospace" fill="${KCOLOR[n.kind]}">${n._collapsed?'+':'–'}</text>
+        ${n._collapsed?`<text x="16" y="4" font-size="11" fill="${KCOLOR[n.kind]}">${countDesc(n)}</text>`:''}
+      </g>`:''}
+    </g>`;
+  });
+  vp.innerHTML=s;
+  applyView();
+}
+function countDesc(n){ let c=0; (function w(x){x.children.forEach(k=>{c++;w(k);});})(n); return c; }
+
+// ---- interactions ----
+const canvas=document.getElementById('canvas'), map=document.getElementById('map');
+vp.addEventListener('click',e=>{
+  const tg=e.target.closest('[data-toggle]');
+  if(tg){ const n=nodeById[tg.getAttribute('data-toggle')]; n._collapsed=!n._collapsed; render(); e.stopPropagation(); return; }
+  const g=e.target.closest('.node');
+  if(g){ const n=nodeById[g.getAttribute('data-id')]; selId=n.id; showDetail(n); render(); }
+});
+
+// pan & zoom
+let dragging=false,sx,sy,otx,oty,moved=false;
+canvas.addEventListener('pointerdown',e=>{ dragging=true;moved=false;sx=e.clientX;sy=e.clientY;otx=view.tx;oty=view.ty;canvas.classList.add('grabbing');canvas.setPointerCapture(e.pointerId);});
+canvas.addEventListener('pointermove',e=>{ if(!dragging)return; view.tx=otx+(e.clientX-sx);view.ty=oty+(e.clientY-sy); if(Math.abs(e.clientX-sx)+Math.abs(e.clientY-sy)>3)moved=true; applyView();});
+canvas.addEventListener('pointerup',e=>{dragging=false;canvas.classList.remove('grabbing');});
+canvas.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const r=map.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top;
+  const f=e.deltaY<0?1.12:0.89, ns=Math.max(.25,Math.min(2.4,view.scale*f));
+  view.tx=mx-(mx-view.tx)*(ns/view.scale); view.ty=my-(my-view.ty)*(ns/view.scale); view.scale=ns; applyView();
+},{passive:false});
+
+function fit(){
+  const ns=visibleNodes(); if(!ns.length)return;
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  ns.forEach(n=>{x0=Math.min(x0,n.x);y0=Math.min(y0,n.y);x1=Math.max(x1,n.x+nodeW(n));y1=Math.max(y1,n.y+nodeH(n));});
+  const r=map.getBoundingClientRect(), pad=40;
+  const s=Math.min((r.width-2*pad)/(x1-x0),(r.height-2*pad)/(y1-y0),1.6);
+  view.scale=s; view.tx=pad-x0*s; view.ty=(r.height-(y1-y0)*s)/2-y0*s; applyView();
+}
+document.getElementById('fit').onclick=fit;
+document.getElementById('expandAll').onclick=()=>{visibleNodes();(function w(n){n._collapsed=false;n.children.forEach(w);})(ROOT);render();fit();};
+document.getElementById('collapseAll').onclick=()=>{ROOT.children.forEach(p=>{p._collapsed=false;p.children.forEach(c=>{if(c.children.length)c._collapsed=true;});});render();fit();};
+
+// search
+document.getElementById('search').addEventListener('input',e=>{
+  const q=e.target.value.trim().toLowerCase();
+  if(!q){ hotSet=null; render(); return; }
+  hotSet=new Set();
+  Object.values(nodeById).forEach(n=>{
+    const hay=(n.label+' '+(n.cid||'')+' '+(n.cid&&comp[n.cid]?comp[n.cid].desc:'')).toLowerCase();
+    if(hay.includes(q)){ hotSet.add(n.id); let p=n.parent; while(p){p._collapsed=false;hotSet.add(p.id);p=p.parent;} }
+  });
+  render();
+});
+
+// ---- detail panel ----
+function expandTo(n){ let p=n.parent; while(p){p._collapsed=false;p=p.parent;} }
+function showDetail(n){
+  const chip=document.getElementById('dChip'), title=document.getElementById('dTitle'), meta=document.getElementById('dMeta'), body=document.getElementById('dBody');
+  chip.style.display='inline-block'; chip.textContent=KLABEL[n.kind]||n.kind;
+  chip.style.color=KCOLOR[n.kind]; chip.style.borderColor=KCOLOR[n.kind]; chip.style.background=KBG[n.kind];
+  title.textContent=n.label.split('\n')[0];
+  const c=n.cid?comp[n.cid]:null;
+  meta.innerHTML = c ? `${c.route?c.route+' · ':''}${c.file||''}` : (n.note||`Grup berisi ${countDesc(n)} komponen`);
+  let h='';
+  if(c){ h+=`<div class="sec"><h4>Deskripsi & metode</h4>${c.desc||''}</div>`; }
+  else if(n.note){ h+=`<div class="sec">${n.note}</div>`; }
+  // child list
+  if(n.children.length){
+    h+=`<div class="sec"><h4>Berisi</h4>${n.children.map(k=>`<span class="flowchip" data-go="${k.id}">${k.label.split('\n')[0]}</span>`).join('')}</div>`;
+  }
+  // flows containing this cid
+  if(n.cid){
+    const fl=FLOW.flows.filter(f=>f.steps.some(s=>s.from===n.cid||s.to===n.cid));
+    if(fl.length) h+=`<div class="sec"><h4>Muncul di alur</h4>${fl.map(f=>`<span class="flowchip" data-flow="${f.id}">${f.title}</span>`).join('')}</div>`;
+  }
+  body.innerHTML=h||'<div class="empty">—</div>';
+  body.querySelectorAll('[data-flow]').forEach(el=>el.onclick=()=>{document.getElementById('flowSel').value=el.getAttribute('data-flow');highlightFlow(el.getAttribute('data-flow'));});
+  body.querySelectorAll('[data-go]').forEach(el=>el.onclick=()=>{const t=nodeById[el.getAttribute('data-go')];expandTo(t);selId=t.id;showDetail(t);render();});
+}
+
+// ---- flow highlight ----
+const flowSel=document.getElementById('flowSel');
+FLOW.flows.forEach(f=>{const o=document.createElement('option');o.value=f.id;o.textContent=f.title;flowSel.appendChild(o);});
+flowSel.addEventListener('change',e=>highlightFlow(e.target.value));
+function highlightFlow(id){
+  if(!id){ hotSet=null; render(); document.getElementById('dBody').innerHTML='<div class="empty">Alur dimatikan. Klik node untuk detail.</div>'; return; }
+  const f=FLOW.flows.find(x=>x.id===id); if(!f)return;
+  hotSet=new Set();
+  const cids=new Set(); f.steps.forEach(s=>{cids.add(s.from);cids.add(s.to);});
+  cids.forEach(cid=>{ const n=nodeById['c_'+cid]; if(n){ hotSet.add(n.id); let p=n.parent; while(p){p._collapsed=false;hotSet.add(p.id);p=p.parent;} } });
+  render(); fit();
+  // detail = step list
+  const TL={navigate:'navigasi',call:'panggil',produce:'hasilkan',read:'baca',persist:'simpan'};
+  document.getElementById('dChip').style.display='inline-block';
+  document.getElementById('dChip').textContent='ALUR'; document.getElementById('dChip').style.color=KCOLOR.phase;
+  document.getElementById('dChip').style.borderColor=KCOLOR.phase; document.getElementById('dChip').style.background=KBG.phase;
+  document.getElementById('dTitle').textContent=f.title;
+  document.getElementById('dMeta').textContent=f.summary;
+  document.getElementById('dBody').innerHTML='<div class="sec"><h4>'+f.steps.length+' langkah</h4></div>'+
+    f.steps.map((s,i)=>{const a=comp[s.from],b=comp[s.to];return `<div class="stepline"><div class="n">${i+1}</div><div class="b"><span class="e">${a?a.label:s.from}</span> → <span class="e">${b?b.label:s.to}</span> <small>(${TL[s.type]||s.type})</small><br><span class="a">${s.action||''}</span><br><span style="color:var(--muted)">${s.detail||''}</span></div></div>`;}).join('');
+}
+
+// legend
+document.getElementById('legendWrap').innerHTML='<div class="legend">'+
+  ['screen','phase','good','provider','service','model','error'].map(k=>`<span class="it"><span class="sw" style="background:${KBG[k]};border-color:${KCOLOR[k]}"></span>${KLABEL[k]}</span>`).join('')+'</div>';
+
+render(); fit();
+</script>
+</body>
+</html>

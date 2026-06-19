@@ -1,0 +1,241 @@
+{
+  "meta": {
+    "app": "I'm ur Biny / TrashScan",
+    "description": "Dokumentasi alur kerja antar paket & komponen aplikasi Flutter pemilah sampah berbasis AI (kiosk iPad, inferensi on-device).",
+    "designTarget": "1194x834 (iPad landscape)",
+    "stateManagement": "Riverpod (StateNotifier)",
+    "navigation": "GoRouter (semua rute di lib/app.dart, tanpa argumen rute)",
+    "generated": "2026-06-16",
+    "note": "Inferensi utama berjalan on-device (RT-DETR + TFLite). GeminiService adalah eskalasi cloud OPSIONAL yang aktif hanya bila GEMINI_API_KEY diisi di .env."
+  },
+  "groups": [
+    { "id": "screen",   "label": "Layar (Screens)",        "color": "#6C8EF5" },
+    { "id": "provider", "label": "Provider (Riverpod)",    "color": "#27AE8F" },
+    { "id": "service",  "label": "Service (Logika & ML)",  "color": "#E08E2B" },
+    { "id": "model",    "label": "Model & Penyimpanan",    "color": "#B265D4" }
+  ],
+  "components": [
+    { "id": "idle",              "group": "screen", "label": "IdleScreen",            "route": "/",                  "file": "lib/features/idle/presentation/idle_screen.dart",               "desc": "Screensaver kiosk. Ketuk untuk memulai sesi." },
+    { "id": "welcome",           "group": "screen", "label": "WelcomeScreen",         "route": "/welcome",          "file": "lib/features/welcome/presentation/welcome_screen.dart",         "desc": "Input nama pengguna & mulai sesi." },
+    { "id": "onboarding",        "group": "screen", "label": "OnboardingScreen",      "route": "/onboarding",       "file": "lib/features/onboarding/presentation/onboarding_screen.dart",   "desc": "Tutorial 4 langkah." },
+    { "id": "mode_select",       "group": "screen", "label": "ModeSelectScreen",      "route": "/mode-select",      "file": "lib/features/mode_select/presentation/mode_select_screen.dart", "desc": "Pilih mode pindai: tunggal vs campuran." },
+    { "id": "category_select",   "group": "screen", "label": "CategorySelectScreen",  "route": "/category-select",  "file": "lib/features/category_select/presentation/category_select_screen.dart", "desc": "Pra-pilih kategori yang diharapkan (opsional)." },
+    { "id": "camera_guide",      "group": "screen", "label": "CameraGuideScreen",     "route": "/camera-guide",     "file": "lib/features/camera_guide/presentation/camera_guide_screen.dart", "desc": "Panduan posisi objek + deteksi real-time di preview." },
+    { "id": "countdown",         "group": "screen", "label": "CountdownScreen",       "route": "/countdown",        "file": "lib/features/countdown/presentation/countdown_screen.dart",     "desc": "Hitung mundur 3-2-1 sebelum tangkap otomatis." },
+    { "id": "scanning",          "group": "screen", "label": "ScanningScreen",        "route": "/scanning",         "file": "lib/features/scanning/presentation/scanning_screen.dart",       "desc": "Tangkap foto -> pratinjau -> jalankan klasifikasi ML (3 fase)." },
+    { "id": "result",            "group": "screen", "label": "ResultScreen",          "route": "/result",           "file": "lib/features/result/presentation/result_screen.dart",           "desc": "Hasil deteksi tunggal: kategori + info pembuangan." },
+    { "id": "multi_result",      "group": "screen", "label": "MultiResultScreen",     "route": "/multi-result",     "file": "lib/features/multi_result/presentation/multi_result_screen.dart","desc": "Hasil mode campuran: kartu per-item + koreksi." },
+    { "id": "unknown_detected",  "group": "screen", "label": "UnknownDetectedScreen", "route": "/unknown-detected", "file": "lib/features/unknown_detected/presentation/unknown_detected_screen.dart", "desc": "Item belum dikenal -> tawarkan analisis AI/koreksi manual." },
+    { "id": "analyzing",         "group": "screen", "label": "AnalyzingScreen",       "route": "/analyzing",        "file": "lib/features/analyzing/presentation/analyzing_screen.dart",     "desc": "Layar loading saat eskalasi Gemini berjalan." },
+    { "id": "conclusion_new",    "group": "screen", "label": "ConclusionNewScreen",   "route": "/conclusion-new",   "file": "lib/features/conclusion_new/presentation/conclusion_new_screen.dart", "desc": "Konfirmasi kategori baru ditemukan (+25 XP)." },
+    { "id": "conclusion_existing","group": "screen","label": "ConclusionExistingScreen","route": "/conclusion-existing","file": "lib/features/conclusion_existing/presentation/conclusion_existing_screen.dart", "desc": "Konfirmasi kategori yang sudah ada (+10 XP)." },
+    { "id": "dataset_saved",     "group": "screen", "label": "DatasetSavedScreen",    "route": "/dataset-saved",    "file": "lib/features/dataset_saved/presentation/dataset_saved_screen.dart", "desc": "Notifikasi hasil disimpan ke dataset on-device." },
+    { "id": "continue_session",  "group": "screen", "label": "ContinueSessionScreen", "route": "/continue-session", "file": "lib/features/continue_session/presentation/continue_session_screen.dart", "desc": "Pilihan: lanjut pindai atau akhiri sesi." },
+    { "id": "thank_you",         "group": "screen", "label": "ThankYouScreen",        "route": "/thank-you",        "file": "lib/features/thank_you/presentation/thank_you_screen.dart",     "desc": "Sesi selesai: total XP, scan, kategori unik." },
+    { "id": "manual_correction", "group": "screen", "label": "ManualCorrectionScreen","route": "/manual-correction","file": "lib/features/manual_correction/presentation/manual_correction_screen.dart", "desc": "Grid 6 kategori untuk override prediksi AI." },
+    { "id": "out_of_frame",      "group": "screen", "label": "OutOfFrameScreen",      "route": "/out-of-frame",     "file": "lib/features/out_of_frame/presentation/out_of_frame_screen.dart","desc": "Error: objek keluar dari batas frame." },
+    { "id": "too_large",         "group": "screen", "label": "TooLargeScreen",        "route": "/too-large",        "file": "lib/features/too_large/presentation/too_large_screen.dart",     "desc": "Error: objek terlalu besar untuk frame." },
+    { "id": "low_confidence",    "group": "screen", "label": "LowConfidenceScreen",   "route": "/low-confidence",   "file": "lib/features/low_confidence/presentation/low_confidence_screen.dart", "desc": "Peringatan keyakinan 0.45-0.65 + 2 kandidat teratas." },
+    { "id": "mixed_attached",    "group": "screen", "label": "MixedAttachedScreen",   "route": "/mixed-attached",   "file": "lib/features/mixed_attached/presentation/mixed_attached_screen.dart", "desc": "Error: beberapa objek bersentuhan/menumpuk." },
+    { "id": "mixed_partial",     "group": "screen", "label": "MixedPartialScreen",    "route": "/mixed-partial",    "file": "lib/features/mixed_partial/presentation/mixed_partial_screen.dart", "desc": "Error: objek sebagian di luar batas (mode campuran)." },
+    { "id": "mixed_too_many",    "group": "screen", "label": "MixedTooManyScreen",    "route": "/mixed-too-many",   "file": "lib/features/mixed_too_many/presentation/mixed_too_many_screen.dart", "desc": "Error: >5 objek terdeteksi, kurangi jumlah." },
+    { "id": "mixed_check",       "group": "screen", "label": "MixedCheckScreen",      "route": "/mixed-check",      "file": "lib/features/mixed_check/presentation/mixed_check_screen.dart", "desc": "Peringatan: sebagian item perlu ditinjau manual." },
+    { "id": "feedback",          "group": "screen", "label": "FeedbackScreen",        "route": "/feedback",         "file": "lib/features/feedback/presentation/feedback_screen.dart",       "desc": "Formulir umpan balik pengguna." },
+
+    { "id": "scan_provider",       "group": "provider", "label": "scanProvider (ScanNotifier)", "file": "lib/core/providers/scan_provider.dart", "desc": "Orkestrator klasifikasi: classifyImage, classifyWithGemini, classifyMultipleImages, classifyMultipleWithGemini, correctResult, saveToHistory, clearResult. Juga: capturedImageProvider, useGeminiProvider, selectedDetailIndexProvider, multiResultsProvider." },
+    { "id": "camera_provider",     "group": "provider", "label": "cameraProvider (CameraNotifier)", "file": "lib/core/providers/camera_provider.dart", "desc": "initializeCamera, capturePhoto; isCameraReadyProvider." },
+    { "id": "session_provider",    "group": "provider", "label": "sessionProvider (SessionNotifier)", "file": "lib/core/providers/session_provider.dart", "desc": "setName, addXP, addScan, addCorrection, addToHistory, resetSession; userNameProvider, xpProvider, scanCountProvider." },
+    { "id": "camera_guide_provider","group": "provider", "label": "cameraGuideProvider (CameraGuideNotifier)", "file": "lib/core/providers/camera_guide_provider.dart", "desc": "startValidation, stopValidation; detectedObjectsProvider, scanRegionsProvider, scanSourceAspectRatioProvider." },
+    { "id": "app_provider",        "group": "provider", "label": "app_provider (state global)", "file": "lib/core/providers/app_provider.dart", "desc": "scanModeProvider ('single'|'mixed'), selectedCategoryProvider, rescanProvider." },
+    { "id": "local_dataset_provider","group": "provider", "label": "localDatasetProvider", "file": "lib/core/providers/local_dataset_provider.dart", "desc": "Akses singleton LocalDatasetService." },
+
+    { "id": "camera_service",          "group": "service", "label": "CameraService", "file": "lib/core/services/camera_service.dart", "desc": "initialize, requestPermission, capturePhoto, captureSmallFrame, dispose." },
+    { "id": "rtdetr_service",          "group": "service", "label": "RTDETRService", "file": "lib/core/services/rtdetr_service.dart", "desc": "Detektor objek RT-DETR (640x640, conf 0.35, NMS 0.45, maks 5). loadModel, detectObjects, detectSingle." },
+    { "id": "tflite_service",          "group": "service", "label": "TFLiteService", "file": "lib/core/services/tflite_service.dart", "desc": "Classifier (256x256, normalisasi ImageNet, brightening adaptif). loadModel, classifyImage, classifyMultipleImages, classifyFrameQuick." },
+    { "id": "object_validator_service","group": "service", "label": "ObjectValidatorService", "file": "lib/core/services/object_validator_service.dart", "desc": "Validasi posisi/ukuran objek berbasis luminance. validate, validateMixed, detectObjectRegions." },
+    { "id": "gemini_service",          "group": "service", "label": "GeminiService (cloud, opsional)", "file": "lib/core/services/gemini_service.dart", "desc": "Eskalasi cloud OPSIONAL via flutter_dotenv. Gerbang: isConfigured (GEMINI_API_KEY ada & bukan placeholder). classifyImage, classifyMultiple." },
+    { "id": "local_dataset_service",   "group": "service", "label": "LocalDatasetService", "file": "lib/core/services/local_dataset_service.dart", "desc": "Cache on-device (Hive + file). init, saveEntry, findMatch (hash + pHash), updateCategoryForImage." },
+    { "id": "session_service",         "group": "service", "label": "SessionService", "file": "lib/core/services/session_service.dart", "desc": "Persistensi sesi via SharedPreferences. loadSession, saveSession, resetSession. XP: baru=25, ada=10, koreksi=2." },
+
+    { "id": "waste_category", "group": "model", "label": "WasteCategory (enum)", "file": "lib/core/models/waste_category.dart", "desc": "Kaca(0), Kertas(1), Logam(2), Organik(3), Plastik(4), Residu(5) + lainnya. Metadata: warna, ikon, subtitle, langkah pembuangan, fakta edukasi." },
+    { "id": "scan_result",    "group": "model", "label": "ScanResult", "file": "lib/core/models/scan_result.dart", "desc": "itemName, category, confidence, disposalInfo, isCorrected, originalCategory, allProbabilities, boundingBox, croppedImage." },
+    { "id": "user_session",   "group": "model", "label": "UserSession", "file": "lib/core/models/user_session.dart", "desc": "userName, totalXP, scanCount, correctionCount, scanHistory + uniqueCategoryCount, averageConfidence, accuracyPercent." },
+    { "id": "storage_hive",   "group": "model", "label": "Hive box + file gambar", "file": "(on-device)", "desc": "Penyimpanan dataset lokal: entri ber-hash + gambar JPG di disk." },
+    { "id": "storage_prefs",  "group": "model", "label": "SharedPreferences", "file": "(on-device)", "desc": "Penyimpanan sesi pengguna (nama, XP, jumlah scan/koreksi)." }
+  ],
+  "flows": [
+    {
+      "id": "boot",
+      "title": "Boot & Mulai Sesi",
+      "summary": "Dari screensaver kiosk hingga pemilihan mode pindai, termasuk pemuatan sesi tersimpan.",
+      "steps": [
+        { "from": "idle",            "to": "session_provider", "type": "read",     "action": "Muat sesi tersimpan", "detail": "Saat mount, SessionNotifier._loadSession() membaca sesi sebelumnya." },
+        { "from": "session_provider","to": "session_service",  "type": "call",     "action": "loadSession()", "detail": "SessionService membaca dari SharedPreferences." },
+        { "from": "session_service", "to": "storage_prefs",    "type": "persist",  "action": "baca SharedPreferences", "detail": "Mengembalikan UserSession (nama, XP, scanCount)." },
+        { "from": "idle",            "to": "welcome",          "type": "navigate", "action": "ketuk layar", "detail": "context.go('/welcome')." },
+        { "from": "welcome",         "to": "session_provider", "type": "call",     "action": "setName(name)", "detail": "Simpan nama pengguna ke state sesi." },
+        { "from": "welcome",         "to": "onboarding",       "type": "navigate", "action": "lanjut", "detail": "context.go('/onboarding')." },
+        { "from": "onboarding",      "to": "mode_select",      "type": "navigate", "action": "selesai tutorial", "detail": "context.go('/mode-select')." }
+      ]
+    },
+    {
+      "id": "single_happy",
+      "title": "Pindai Tunggal — Keyakinan Tinggi",
+      "summary": "Jalur bahagia: pilih mode tunggal, tangkap, klasifikasi on-device (RT-DETR -> TFLite), tampilkan hasil, simpan.",
+      "steps": [
+        { "from": "mode_select",      "to": "app_provider",         "type": "call",     "action": "scanModeProvider='single'", "detail": "Set mode pindai tunggal." },
+        { "from": "mode_select",      "to": "category_select",      "type": "navigate", "action": "lanjut", "detail": "context.go('/category-select')." },
+        { "from": "category_select",  "to": "app_provider",         "type": "call",     "action": "selectedCategoryProvider", "detail": "Pra-pilih kategori (opsional)." },
+        { "from": "category_select",  "to": "camera_guide",         "type": "navigate", "action": "lanjut", "detail": "context.go('/camera-guide')." },
+        { "from": "camera_guide",     "to": "camera_guide_provider","type": "call",     "action": "startValidation()", "detail": "Deteksi objek real-time di preview." },
+        { "from": "camera_guide_provider","to": "object_validator_service","type": "call","action": "validate / detectObjectRegions", "detail": "Validasi posisi & ukuran berbasis luminance." },
+        { "from": "camera_guide",     "to": "countdown",            "type": "navigate", "action": "PINDAI SEKARANG", "detail": "context.go('/countdown')." },
+        { "from": "countdown",        "to": "scanning",             "type": "navigate", "action": "3-2-1 selesai", "detail": "context.go('/scanning')." },
+        { "from": "scanning",         "to": "camera_provider",      "type": "call",     "action": "capturePhoto()", "detail": "Tangkap foto." },
+        { "from": "camera_provider",  "to": "camera_service",       "type": "call",     "action": "capturePhoto()", "detail": "Ambil bytes JPEG dari kamera." },
+        { "from": "scanning",         "to": "scan_provider",        "type": "call",     "action": "classifyImage(bytes)", "detail": "useGeminiProvider=false (on-device dulu). Simpan capturedImageProvider." },
+        { "from": "scan_provider",    "to": "local_dataset_service","type": "call",     "action": "findMatch(bytes)", "detail": "Cek cache lokal lebih dulu (hash + pHash)." },
+        { "from": "scan_provider",    "to": "rtdetr_service",       "type": "call",     "action": "detectSingle(bytes)", "detail": "Detektor primer RT-DETR jika model tersedia." },
+        { "from": "scan_provider",    "to": "tflite_service",       "type": "call",     "action": "classifyImage(bytes)", "detail": "Fallback klasifikasi gambar penuh." },
+        { "from": "tflite_service",   "to": "scan_result",          "type": "produce",  "action": "ScanResult", "detail": "category, confidence, disposalInfo (conf >= 0.65)." },
+        { "from": "scanning",         "to": "result",               "type": "navigate", "action": "keyakinan tinggi", "detail": "context.go('/result')." },
+        { "from": "result",           "to": "scan_provider",        "type": "read",     "action": "scanResultProvider", "detail": "Tampilkan gambar + kategori + info." },
+        { "from": "result",           "to": "scan_provider",        "type": "call",     "action": "saveToHistory()", "detail": "SELESAI -> simpan ke riwayat + dataset lokal." },
+        { "from": "scan_provider",    "to": "local_dataset_service","type": "persist",  "action": "saveEntry(...)", "detail": "Simpan ke Hive + gambar ke disk." },
+        { "from": "local_dataset_service","to":"storage_hive",      "type": "persist",  "action": "tulis entri", "detail": "Entri ber-hash + JPG." },
+        { "from": "result",           "to": "session_provider",     "type": "call",     "action": "addScan(); addXP(+10)", "detail": "XP kategori yang sudah ada." },
+        { "from": "result",           "to": "continue_session",     "type": "navigate", "action": "SELESAI", "detail": "context.go('/continue-session')." }
+      ]
+    },
+    {
+      "id": "single_low",
+      "title": "Pindai Tunggal — Keyakinan Rendah",
+      "summary": "Hasil 0.45-0.65: tampilkan 2 kandidat, pengguna konfirmasi atau koreksi.",
+      "steps": [
+        { "from": "scanning",      "to": "scan_provider",  "type": "call",     "action": "classifyImage(bytes)", "detail": "Hasil on-device." },
+        { "from": "scan_provider", "to": "scan_result",    "type": "produce",  "action": "ScanResult (0.45-0.65)", "detail": "Kategori terbaca tapi keyakinan rendah." },
+        { "from": "scanning",      "to": "low_confidence", "type": "navigate", "action": "keyakinan rendah", "detail": "context.go('/low-confidence')." },
+        { "from": "low_confidence","to": "scan_provider",  "type": "read",     "action": "scanResultProvider", "detail": "Tampilkan 2 kandidat teratas (allProbabilities)." },
+        { "from": "low_confidence","to": "scan_provider",  "type": "call",     "action": "saveToHistory()", "detail": "YA, BENAR -> terima hasil." },
+        { "from": "low_confidence","to": "session_provider","type": "call",    "action": "addScan(); addXP(+10)", "detail": "Simpan & lanjut." },
+        { "from": "low_confidence","to": "continue_session","type": "navigate","action": "YA, BENAR", "detail": "context.go('/continue-session')." },
+        { "from": "low_confidence","to": "manual_correction","type": "navigate","action": "KOREKSI", "detail": "context.go('/manual-correction')." }
+      ]
+    },
+    {
+      "id": "single_unknown_gemini",
+      "title": "Tunggal — Tidak Dikenal -> Eskalasi Gemini (opsional)",
+      "summary": "Keyakinan <0.45: tawarkan analisis cloud Gemini (hanya bila GEMINI_API_KEY diisi), lalu konfirmasi.",
+      "steps": [
+        { "from": "scanning",         "to": "scan_provider",      "type": "call",     "action": "classifyImage(bytes)", "detail": "Hasil on-device < 0.45 -> lainnya." },
+        { "from": "scan_provider",    "to": "scan_result",        "type": "produce",  "action": "ScanResult (lainnya)", "detail": "Belum dikenal." },
+        { "from": "scanning",         "to": "unknown_detected",   "type": "navigate", "action": "tidak dikenal", "detail": "context.go('/unknown-detected')." },
+        { "from": "unknown_detected", "to": "gemini_service",     "type": "read",     "action": "isConfigured", "detail": "geminiAvailableProvider menentukan apakah tombol AI tampil." },
+        { "from": "unknown_detected", "to": "scan_provider",      "type": "call",     "action": "useGeminiProvider=true", "detail": "ANALISIS DENGAN AI." },
+        { "from": "unknown_detected", "to": "analyzing",          "type": "navigate", "action": "ANALISIS DENGAN AI", "detail": "context.go('/analyzing')." },
+        { "from": "analyzing",        "to": "scan_provider",      "type": "call",     "action": "classifyWithGemini(bytes)", "detail": "Jalankan eskalasi cloud." },
+        { "from": "scan_provider",    "to": "gemini_service",     "type": "call",     "action": "classifyImage(bytes)", "detail": "Kirim JPEG base64 ke Gemini, parse JSON." },
+        { "from": "gemini_service",   "to": "scan_result",        "type": "produce",  "action": "ScanResult", "detail": "_lastUsedGemini=true." },
+        { "from": "analyzing",        "to": "app_provider",       "type": "read",     "action": "selectedCategoryProvider", "detail": "Cocokkan dengan kategori pra-pilih." },
+        { "from": "analyzing",        "to": "conclusion_new",     "type": "navigate", "action": "kategori baru", "detail": "Tidak cocok pra-pilih -> /conclusion-new (+25 XP)." },
+        { "from": "analyzing",        "to": "conclusion_existing","type": "navigate", "action": "kategori ada", "detail": "Cocok pra-pilih -> /conclusion-existing (+10 XP)." },
+        { "from": "conclusion_new",   "to": "dataset_saved",      "type": "navigate", "action": "LANJUTKAN", "detail": "context.go('/dataset-saved')." },
+        { "from": "dataset_saved",    "to": "continue_session",   "type": "navigate", "action": "lanjut", "detail": "context.go('/continue-session')." }
+      ]
+    },
+    {
+      "id": "manual_correction",
+      "title": "Koreksi Manual",
+      "summary": "Pengguna override prediksi AI lewat grid 6 kategori; koreksi disimpan ke dataset lokal.",
+      "steps": [
+        { "from": "result",            "to": "manual_correction",     "type": "navigate", "action": "Koreksi manual", "detail": "Dari ResultScreen atau MultiResultScreen." },
+        { "from": "manual_correction", "to": "scan_provider",         "type": "read",     "action": "scanResultProvider", "detail": "Tampilkan tebakan AI saat ini (badge)." },
+        { "from": "manual_correction", "to": "waste_category",        "type": "read",     "action": "6 kategori", "detail": "Grid: Kaca, Kertas, Logam, Organik, Plastik, Residu." },
+        { "from": "manual_correction", "to": "scan_provider",         "type": "call",     "action": "correctResult(newCategory)", "detail": "Buat salinan terkoreksi (isCorrected=true)." },
+        { "from": "scan_provider",     "to": "local_dataset_service", "type": "persist",  "action": "updateCategoryForImage()", "detail": "Perbarui label gambar di cache." },
+        { "from": "local_dataset_service","to": "storage_hive",       "type": "persist",  "action": "tulis ulang entri", "detail": "Kategori baru tersimpan." },
+        { "from": "manual_correction", "to": "session_provider",      "type": "call",     "action": "addCorrection(); addXP(+2)", "detail": "Catat koreksi." },
+        { "from": "manual_correction", "to": "continue_session",      "type": "navigate", "action": "SIMPAN KOREKSI", "detail": "context.go('/continue-session') (atau kembali ke multi-result)." }
+      ]
+    },
+    {
+      "id": "mixed_happy",
+      "title": "Pindai Campuran — Jalur Bahagia",
+      "summary": "Mode campuran: deteksi banyak objek (RT-DETR / fallback validator+TFLite), tampilkan kartu per-item.",
+      "steps": [
+        { "from": "mode_select",      "to": "app_provider",            "type": "call",     "action": "scanModeProvider='mixed'", "detail": "Set mode campuran." },
+        { "from": "mode_select",      "to": "category_select",         "type": "navigate", "action": "lanjut", "detail": "context.go('/category-select')." },
+        { "from": "category_select",  "to": "camera_guide",            "type": "navigate", "action": "lanjut", "detail": "Preview deteksi multi-objek." },
+        { "from": "camera_guide",     "to": "camera_guide_provider",   "type": "call",     "action": "startValidation() (mixed)", "detail": "Label status per-objek." },
+        { "from": "camera_guide",     "to": "scanning",                "type": "navigate", "action": "PINDAI -> countdown", "detail": "Lewat countdown ke /scanning." },
+        { "from": "scanning",         "to": "scan_provider",           "type": "call",     "action": "classifyMultipleImages(bytes)", "detail": "Klasifikasi banyak objek." },
+        { "from": "scan_provider",    "to": "rtdetr_service",          "type": "call",     "action": "detectObjects(bytes)", "detail": "Deteksi semua objek (maks 5)." },
+        { "from": "scan_provider",    "to": "object_validator_service","type": "call",     "action": "detectObjectRegions()", "detail": "Fallback bila RT-DETR tak tersedia." },
+        { "from": "scan_provider",    "to": "tflite_service",          "type": "call",     "action": "classifyMultipleImages(bytes, regions)", "detail": "Klasifikasi tiap crop." },
+        { "from": "scan_provider",    "to": "local_dataset_service",   "type": "call",     "action": "findMatch(crop)", "detail": "Perkaya per-item dari cache." },
+        { "from": "tflite_service",   "to": "scan_result",             "type": "produce",  "action": "List<ScanResult>", "detail": "Disimpan di multiResultsProvider." },
+        { "from": "scanning",         "to": "multi_result",            "type": "navigate", "action": "hasil siap", "detail": "context.go('/multi-result')." },
+        { "from": "multi_result",     "to": "scan_provider",           "type": "read",     "action": "multiResultsProvider", "detail": "Carousel kartu per-item." },
+        { "from": "multi_result",     "to": "scan_provider",           "type": "call",     "action": "saveMultiToLocalDataset()", "detail": "SELESAI -> simpan semua item." },
+        { "from": "scan_provider",    "to": "local_dataset_service",   "type": "persist",  "action": "saveEntry per item", "detail": "Tulis ke Hive + disk." },
+        { "from": "multi_result",     "to": "session_provider",        "type": "call",     "action": "addScan(); addXP(...)", "detail": "XP per item." },
+        { "from": "multi_result",     "to": "continue_session",        "type": "navigate", "action": "SELESAI", "detail": "context.go('/continue-session')." }
+      ]
+    },
+    {
+      "id": "mixed_gemini",
+      "title": "Campuran — Analisis Ulang Gemini (opsional)",
+      "summary": "Dari MultiResultScreen, 'Pindai Lagi' mengirim ulang ke Gemini untuk deteksi + bbox semua objek.",
+      "steps": [
+        { "from": "multi_result",  "to": "gemini_service",  "type": "read",     "action": "isConfigured", "detail": "Tombol cloud aktif hanya bila API key ada." },
+        { "from": "multi_result",  "to": "scan_provider",   "type": "call",     "action": "useGeminiProvider=true; classifyMultipleWithGemini(bytes)", "detail": "reanalyzeMultiIndexProvider=null." },
+        { "from": "scan_provider", "to": "gemini_service",  "type": "call",     "action": "classifyMultiple(bytes)", "detail": "Deteksi semua objek + bbox ternormalisasi." },
+        { "from": "gemini_service","to": "scan_result",     "type": "produce",  "action": "List<ScanResult>", "detail": "Crop tiap item per bbox; _lastUsedGemini=true." },
+        { "from": "scan_provider", "to": "multi_result",    "type": "navigate", "action": "hasil baru", "detail": "Kembali ke MultiResultScreen dengan hasil segar." }
+      ]
+    },
+    {
+      "id": "edge_cases",
+      "title": "Validasi & Kasus Tepi",
+      "summary": "ObjectValidatorService / RT-DETR mendeteksi masalah posisi/jumlah -> rute error spesifik -> pindai ulang.",
+      "steps": [
+        { "from": "camera_guide",            "to": "object_validator_service","type": "call",     "action": "validate / validateMixed", "detail": "Cek ukuran, batas, jumlah, tumpang tindih." },
+        { "from": "object_validator_service","to": "scanning",                "type": "produce",  "action": "ObjectValidation / MixedObjectValidation", "detail": "Status menentukan rute." },
+        { "from": "scanning",                "to": "too_large",               "type": "navigate", "action": "tooLarge", "detail": "Objek terlalu besar -> /too-large." },
+        { "from": "scanning",                "to": "out_of_frame",            "type": "navigate", "action": "objectOutsideBoundary", "detail": "Objek keluar frame -> /out-of-frame." },
+        { "from": "scanning",                "to": "mixed_attached",          "type": "navigate", "action": "objectsOverlapping", "detail": "Objek bersentuhan -> /mixed-attached." },
+        { "from": "scanning",                "to": "mixed_partial",           "type": "navigate", "action": "objectOutsideBoundary (mixed)", "detail": "Sebagian di luar batas -> /mixed-partial." },
+        { "from": "scanning",                "to": "mixed_too_many",          "type": "navigate", "action": "tooManyObjects", "detail": ">5 objek -> /mixed-too-many." },
+        { "from": "scanning",                "to": "mixed_check",             "type": "navigate", "action": "sebagian ragu", "detail": "Perlu tinjauan -> /mixed-check." },
+        { "from": "too_large",               "to": "camera_guide",            "type": "navigate", "action": "PINDAI ULANG", "detail": "Kembali ke panduan kamera." }
+      ]
+    },
+    {
+      "id": "cache_hit",
+      "title": "Jalur Cepat — Cache Dataset Lokal",
+      "summary": "Bila gambar mirip pernah dipindai, LocalDatasetService mengembalikan hasil instan tanpa inferensi ML.",
+      "steps": [
+        { "from": "scanning",             "to": "scan_provider",        "type": "call",    "action": "classifyImage(bytes)", "detail": "Mulai klasifikasi." },
+        { "from": "scan_provider",        "to": "local_dataset_service","type": "call",    "action": "findMatch(bytes)", "detail": "Bandingkan hash + pHash (jarak Hamming <= 2)." },
+        { "from": "local_dataset_service","to": "storage_hive",         "type": "read",    "action": "baca entri", "detail": "Cari kecocokan di Hive." },
+        { "from": "local_dataset_service","to": "scan_result",          "type": "produce", "action": "ScanResult (confidence=1.0)", "detail": "Hasil dari cache, lewati RT-DETR/TFLite/Gemini." },
+        { "from": "scan_provider",        "to": "result",               "type": "navigate","action": "tampilkan hasil", "detail": "Langsung ke ResultScreen." }
+      ]
+    },
+    {
+      "id": "session_end",
+      "title": "Akhiri Sesi & Persistensi",
+      "summary": "Selesai sesi -> simpan UserSession, tampilkan statistik, kembali ke idle.",
+      "steps": [
+        { "from": "continue_session", "to": "scan_provider",    "type": "call",     "action": "clearResult()", "detail": "LANJUT PINDAI -> bersihkan & kembali ke /mode-select." },
+        { "from": "continue_session", "to": "mode_select",      "type": "navigate", "action": "LANJUT PINDAI", "detail": "context.go('/mode-select')." },
+        { "from": "continue_session", "to": "session_provider", "type": "call",     "action": "addScan()", "detail": "SELESAI SESI." },
+        { "from": "session_provider", "to": "session_service",  "type": "call",     "action": "saveSession(state)", "detail": "Persist UserSession." },
+        { "from": "session_service",  "to": "storage_prefs",    "type": "persist",  "action": "tulis SharedPreferences", "detail": "Nama, XP, jumlah scan/koreksi." },
+        { "from": "continue_session", "to": "thank_you",        "type": "navigate", "action": "SELESAI SESI", "detail": "context.go('/thank-you')." },
+        { "from": "thank_you",        "to": "user_session",     "type": "read",     "action": "statistik sesi", "detail": "totalXP, scanCount, uniqueCategoryCount, accuracyPercent." },
+        { "from": "thank_you",        "to": "idle",             "type": "navigate", "action": "ketuk", "detail": "context.go('/') kembali ke screensaver." }
+      ]
+    }
+  ]
+}
