@@ -25,13 +25,16 @@ class BluetoothStateNotifier extends StateNotifier<BTConnectionState> {
   StreamSubscription? _connectionSubscription;
   StreamSubscription? _adapterStateSubscription;
 
+  // Guard flag: mencegah double-connect saat scan menemukan device berkali-kali
+  bool _isConnecting = false;
+
   final String _targetDeviceName = "SmartBin_ESP32";
   final Guid _serviceGuid = Guid("4fafc201-1fb5-459e-8fcc-c5c9c331914b");
   final Guid _characteristicGuid = Guid("beb5483e-36e1-4688-b7f5-ea07361b26a8");
 
   Future<void> _initBluetooth() async {
     if (state == BTConnectionState.connecting || state == BTConnectionState.connected) return;
-    
+
     state = BTConnectionState.connecting;
 
     // Request permissions
@@ -45,71 +48,105 @@ class BluetoothStateNotifier extends StateNotifier<BTConnectionState> {
     try {
       if (await FlutterBluePlus.isSupported == false) {
         state = BTConnectionState.error;
-        debugPrint("Bluetooth not supported");
+        debugPrint("[BLE] Bluetooth not supported on this device");
         return;
       }
 
-      // Check adapter state
-      _adapterStateSubscription = FlutterBluePlus.adapterState.listen((BluetoothAdapterState adapterState) async {
-        if (adapterState == BluetoothAdapterState.on) {
+      // Cancel existing adapter subscription jika ada
+      _adapterStateSubscription?.cancel();
+
+      // Listen ke adapter state SEKALI — jika sudah ON langsung scan
+      bool hasStartedScan = false;
+      _adapterStateSubscription = FlutterBluePlus.adapterState.listen((BluetoothAdapterState adapterState) {
+        debugPrint("[BLE] Adapter state: $adapterState");
+        if (adapterState == BluetoothAdapterState.on && !hasStartedScan) {
+          hasStartedScan = true;
           _startScan();
         } else if (adapterState == BluetoothAdapterState.off) {
           state = BTConnectionState.error;
-          debugPrint("Bluetooth is off");
+          hasStartedScan = false;
+          debugPrint("[BLE] Bluetooth is OFF");
         }
       });
 
     } catch (e) {
       state = BTConnectionState.error;
-      debugPrint("Bluetooth Error: $e");
+      debugPrint("[BLE] Init Error: $e");
     }
   }
 
   void _startScan() {
-    if (state == BTConnectionState.connected) return;
+    if (state == BTConnectionState.connected || _isConnecting) return;
     state = BTConnectionState.connecting;
-    
-    _scanSubscription?.cancel();
-    
-    FlutterBluePlus.startScan(timeout: const Duration(seconds: 15));
+    _isConnecting = false;
 
-    _scanSubscription = FlutterBluePlus.scanResults.listen((results) {
+    _scanSubscription?.cancel();
+
+    debugPrint("[BLE] Memulai scan BLE untuk '$_targetDeviceName'...");
+
+    // Scan tanpa filter UUID agar lebih luas — filter by name di listener
+    FlutterBluePlus.startScan(
+      timeout: const Duration(seconds: 20),
+      androidUsesFineLocation: true,
+    );
+
+    _scanSubscription = FlutterBluePlus.onScanResults.listen((results) {
       for (ScanResult r in results) {
-        if (r.device.advName == _targetDeviceName || r.device.platformName == _targetDeviceName) {
+        final name = r.device.advName.isNotEmpty
+            ? r.device.advName
+            : r.device.platformName;
+
+        debugPrint("[BLE] Ditemukan: '$name' (${r.device.remoteId})");
+
+        if (name == _targetDeviceName && !_isConnecting) {
+          _isConnecting = true;
           FlutterBluePlus.stopScan();
+          debugPrint("[BLE] SmartBin ditemukan! Menghubungkan...");
           _connectToDevice(r.device);
           break;
         }
       }
+    }, onError: (e) {
+      debugPrint("[BLE] Scan Error: $e");
     });
   }
 
   Future<void> _connectToDevice(BluetoothDevice device) async {
     try {
       _device = device;
-      
-      _connectionSubscription = device.connectionState.listen((BluetoothConnectionState state) async {
-        if (state == BluetoothConnectionState.disconnected) {
-          this.state = BTConnectionState.disconnected;
+
+      // Batalkan listener koneksi lama jika ada
+      _connectionSubscription?.cancel();
+
+      _connectionSubscription = device.connectionState.listen((BluetoothConnectionState connState) {
+        debugPrint("[BLE] Connection state: $connState");
+        if (connState == BluetoothConnectionState.disconnected) {
+          state = BTConnectionState.disconnected;
           _writeCharacteristic = null;
-          debugPrint("Device Disconnected");
-          
-          // Auto reconnect after a short delay
+          _isConnecting = false;
+          debugPrint("[BLE] Device terputus. Mencoba reconnect dalam 5 detik...");
+
+          // Auto reconnect
           Future.delayed(const Duration(seconds: 5), () {
-            if (this.state != BTConnectionState.connected && this.state != BTConnectionState.connecting) {
+            if (state != BTConnectionState.connected &&
+              state != BTConnectionState.connecting) {
               _startScan();
             }
           });
         }
       });
 
-      await device.connect(autoConnect: false);
-      
+      await device.connect(autoConnect: false, timeout: const Duration(seconds: 15));
+
       // Discover services
       List<BluetoothService> services = await device.discoverServices();
+      debugPrint("[BLE] Jumlah service ditemukan: ${services.length}");
+
       for (BluetoothService service in services) {
+        debugPrint("[BLE] Service UUID: ${service.uuid}");
         if (service.uuid == _serviceGuid) {
           for (BluetoothCharacteristic c in service.characteristics) {
+            debugPrint("[BLE]   Characteristic UUID: ${c.uuid}");
             if (c.uuid == _characteristicGuid) {
               _writeCharacteristic = c;
               break;
@@ -120,31 +157,38 @@ class BluetoothStateNotifier extends StateNotifier<BTConnectionState> {
 
       if (_writeCharacteristic != null) {
         state = BTConnectionState.connected;
-        debugPrint("Connected to SmartBin_ESP32 BLE");
+        _isConnecting = false;
+        debugPrint("[BLE] ✅ Terhubung ke SmartBin_ESP32!");
       } else {
         state = BTConnectionState.error;
-        debugPrint("Service/Characteristic not found");
+        _isConnecting = false;
+        debugPrint("[BLE] ❌ Service/Characteristic tidak ditemukan.");
         device.disconnect();
       }
 
     } catch (e) {
       state = BTConnectionState.error;
-      debugPrint("Connection Error: $e");
+      _isConnecting = false;
+      debugPrint("[BLE] Connection Error: $e");
     }
   }
 
   Future<void> _writeSignal(String signal) async {
     if (_writeCharacteristic != null && state == BTConnectionState.connected) {
       try {
-        await _writeCharacteristic!.write(ascii.encode(signal), withoutResponse: true);
-        debugPrint("Bluetooth Signal Sent: $signal");
+        // Coba withoutResponse dulu (lebih cepat), fallback ke dengan response
+        await _writeCharacteristic!.write(
+          ascii.encode(signal),
+          withoutResponse: _writeCharacteristic!.properties.writeWithoutResponse,
+        );
+        debugPrint("[BLE] Signal Sent: '$signal'");
       } catch (e) {
-        debugPrint("Write Error: $e");
+        debugPrint("[BLE] Write Error: $e");
       }
     } else {
-      debugPrint("Cannot send: Bluetooth not connected");
+      debugPrint("[BLE] Tidak bisa kirim: belum terhubung (state=$state)");
       if (state == BTConnectionState.disconnected || state == BTConnectionState.error) {
-         _initBluetooth();
+        _initBluetooth();
       }
     }
   }
@@ -170,7 +214,7 @@ class BluetoothStateNotifier extends StateNotifier<BTConnectionState> {
         signal = 'O';
         break;
     }
-    
+
     if (signal.isNotEmpty) {
       _writeSignal(signal);
     }
