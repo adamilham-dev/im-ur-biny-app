@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/providers/session_provider.dart';
 import '../../../core/providers/scan_provider.dart';
+import '../../../core/providers/bluetooth_provider.dart';
 import '../../../core/models/user_session.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_responsive.dart';
@@ -430,6 +431,7 @@ class _ThankYouScreenState extends ConsumerState<ThankYouScreen>
 
   void _onSelesaiPressed() {
     setState(() => _isLoading = true);
+    ref.read(bluetoothProvider.notifier).sendCloseAll();
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
         ref.read(sessionProvider.notifier).resetSession();
