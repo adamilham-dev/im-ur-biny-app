@@ -120,6 +120,18 @@ class BluetoothStateNotifier extends StateNotifier<BTConnectionState> {
     }
   }
 
+  void sendCloseAll() {
+    if (_connection != null && _connection!.isConnected) {
+      _connection!.output.add(ascii.encode('0'));
+      _connection!.output.allSent.then((_) {
+        debugPrint("Bluetooth Signal Sent: 0 (Close All)");
+      });
+    } else {
+      debugPrint("Cannot send: Bluetooth not connected");
+      _initBluetooth();
+    }
+  }
+
   @override
   void dispose() {
     _connection?.dispose();

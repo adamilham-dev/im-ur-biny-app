@@ -10,6 +10,7 @@ import '../../../core/models/waste_category.dart';
 import '../../../core/providers/app_provider.dart';
 import '../../../core/providers/scan_provider.dart';
 import '../../../core/providers/session_provider.dart';
+import '../../../core/providers/bluetooth_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_responsive.dart';
 import '../../../shared/widgets/biny_hero.dart';
@@ -1424,6 +1425,7 @@ class _MultiResultScreenState extends ConsumerState<MultiResultScreen> {
         child: InkWell(
           borderRadius: BorderRadius.circular(999),
           onTap: () {
+            ref.read(bluetoothProvider.notifier).sendCloseAll();
             ref.read(sessionProvider.notifier).addToHistory(results);
             ref.read(sessionProvider.notifier).addXP(_totalXP);
             ref.read(sessionProvider.notifier).addScan();

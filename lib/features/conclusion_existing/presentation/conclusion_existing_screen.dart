@@ -805,6 +805,7 @@ class _ConclusionExistingScreenState extends ConsumerState<ConclusionExistingScr
         child: InkWell(
           borderRadius: BorderRadius.circular(999),
           onTap: () {
+            ref.read(bluetoothProvider.notifier).sendCloseAll();
             ref.read(scanProvider.notifier).saveToHistory();
             ref
                 .read(sessionProvider.notifier)
