@@ -1,7 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../models/waste_category.dart';
@@ -18,14 +19,21 @@ class BluetoothStateNotifier extends StateNotifier<BTConnectionState> {
     _initBluetooth();
   }
 
-  BluetoothConnection? _connection;
+  BluetoothDevice? _device;
+  BluetoothCharacteristic? _writeCharacteristic;
+  StreamSubscription? _scanSubscription;
+  StreamSubscription? _connectionSubscription;
+  StreamSubscription? _adapterStateSubscription;
+
   final String _targetDeviceName = "SmartBin_ESP32";
-  
+  final Guid _serviceGuid = Guid("4fafc201-1fb5-459e-8fcc-c5c9c331914b");
+  final Guid _characteristicGuid = Guid("beb5483e-36e1-4688-b7f5-ea07361b26a8");
+
   Future<void> _initBluetooth() async {
     if (state == BTConnectionState.connecting || state == BTConnectionState.connected) return;
     
     state = BTConnectionState.connecting;
-    
+
     // Request permissions
     await [
       Permission.bluetooth,
@@ -35,106 +43,149 @@ class BluetoothStateNotifier extends StateNotifier<BTConnectionState> {
     ].request();
 
     try {
-      // Cek status bluetooth
-      bool? isEnabled = await FlutterBluetoothSerial.instance.isEnabled;
-      if (isEnabled == false) {
-        await FlutterBluetoothSerial.instance.requestEnable();
-      }
-
-      // Get list of paired devices
-      List<BluetoothDevice> devices = await FlutterBluetoothSerial.instance.getBondedDevices();
-      BluetoothDevice? targetDevice;
-      
-      for (BluetoothDevice device in devices) {
-        if (device.name == _targetDeviceName) {
-          targetDevice = device;
-          break;
-        }
-      }
-
-      if (targetDevice != null) {
-        await _connectToDevice(targetDevice);
-      } else {
-        // If not paired
+      if (await FlutterBluePlus.isSupported == false) {
         state = BTConnectionState.error;
-        debugPrint("Device not paired. Please pair 'SmartBin_ESP32' in Android Bluetooth Settings first.");
+        debugPrint("Bluetooth not supported");
+        return;
       }
+
+      // Check adapter state
+      _adapterStateSubscription = FlutterBluePlus.adapterState.listen((BluetoothAdapterState adapterState) async {
+        if (adapterState == BluetoothAdapterState.on) {
+          _startScan();
+        } else if (adapterState == BluetoothAdapterState.off) {
+          state = BTConnectionState.error;
+          debugPrint("Bluetooth is off");
+        }
+      });
+
     } catch (e) {
       state = BTConnectionState.error;
       debugPrint("Bluetooth Error: $e");
     }
   }
 
+  void _startScan() {
+    if (state == BTConnectionState.connected) return;
+    state = BTConnectionState.connecting;
+    
+    _scanSubscription?.cancel();
+    
+    FlutterBluePlus.startScan(timeout: const Duration(seconds: 15));
+
+    _scanSubscription = FlutterBluePlus.scanResults.listen((results) {
+      for (ScanResult r in results) {
+        if (r.device.advName == _targetDeviceName || r.device.platformName == _targetDeviceName) {
+          FlutterBluePlus.stopScan();
+          _connectToDevice(r.device);
+          break;
+        }
+      }
+    });
+  }
+
   Future<void> _connectToDevice(BluetoothDevice device) async {
     try {
-      _connection = await BluetoothConnection.toAddress(device.address);
-      state = BTConnectionState.connected;
-      debugPrint("Connected to the SmartBin_ESP32");
+      _device = device;
       
-      _connection!.input!.listen((Uint8List data) {
-        // Menerima pesan dari Arduino jika ada (opsional)
-        debugPrint("ESP32: ${ascii.decode(data)}");
-      }).onDone(() {
-        state = BTConnectionState.disconnected;
-        debugPrint("Disconnected by remote request");
+      _connectionSubscription = device.connectionState.listen((BluetoothConnectionState state) async {
+        if (state == BluetoothConnectionState.disconnected) {
+          this.state = BTConnectionState.disconnected;
+          _writeCharacteristic = null;
+          debugPrint("Device Disconnected");
+          
+          // Auto reconnect after a short delay
+          Future.delayed(const Duration(seconds: 5), () {
+            if (this.state != BTConnectionState.connected && this.state != BTConnectionState.connecting) {
+              _startScan();
+            }
+          });
+        }
       });
+
+      await device.connect(autoConnect: false);
+      
+      // Discover services
+      List<BluetoothService> services = await device.discoverServices();
+      for (BluetoothService service in services) {
+        if (service.uuid == _serviceGuid) {
+          for (BluetoothCharacteristic c in service.characteristics) {
+            if (c.uuid == _characteristicGuid) {
+              _writeCharacteristic = c;
+              break;
+            }
+          }
+        }
+      }
+
+      if (_writeCharacteristic != null) {
+        state = BTConnectionState.connected;
+        debugPrint("Connected to SmartBin_ESP32 BLE");
+      } else {
+        state = BTConnectionState.error;
+        debugPrint("Service/Characteristic not found");
+        device.disconnect();
+      }
+
     } catch (e) {
       state = BTConnectionState.error;
       debugPrint("Connection Error: $e");
     }
   }
 
-  void sendCategory(WasteCategory category) {
-    if (_connection != null && _connection!.isConnected) {
-      String signal = '';
-      switch (category) {
-        case WasteCategory.plastik:
-          signal = 'P';
-          break;
-        case WasteCategory.kertas:
-          signal = 'K';
-          break;
-        case WasteCategory.logam:
-          signal = 'L';
-          break;
-        case WasteCategory.kaca:
-        case WasteCategory.residu:
-          signal = 'R';
-          break;
-        case WasteCategory.organik:
-        case WasteCategory.lainnya:
-          signal = 'O';
-          break;
-      }
-      
-      if (signal.isNotEmpty) {
-        _connection!.output.add(ascii.encode(signal));
-        _connection!.output.allSent.then((_) {
-          debugPrint("Bluetooth Signal Sent: $signal");
-        });
+  Future<void> _writeSignal(String signal) async {
+    if (_writeCharacteristic != null && state == BTConnectionState.connected) {
+      try {
+        await _writeCharacteristic!.write(ascii.encode(signal), withoutResponse: true);
+        debugPrint("Bluetooth Signal Sent: $signal");
+      } catch (e) {
+        debugPrint("Write Error: $e");
       }
     } else {
       debugPrint("Cannot send: Bluetooth not connected");
-      // Coba reconnect
-      _initBluetooth();
+      if (state == BTConnectionState.disconnected || state == BTConnectionState.error) {
+         _initBluetooth();
+      }
+    }
+  }
+
+  void sendCategory(WasteCategory category) {
+    String signal = '';
+    switch (category) {
+      case WasteCategory.plastik:
+        signal = 'P';
+        break;
+      case WasteCategory.kertas:
+        signal = 'K';
+        break;
+      case WasteCategory.logam:
+        signal = 'L';
+        break;
+      case WasteCategory.kaca:
+      case WasteCategory.residu:
+        signal = 'R';
+        break;
+      case WasteCategory.organik:
+      case WasteCategory.lainnya:
+        signal = 'O';
+        break;
+    }
+    
+    if (signal.isNotEmpty) {
+      _writeSignal(signal);
     }
   }
 
   void sendCloseAll() {
-    if (_connection != null && _connection!.isConnected) {
-      _connection!.output.add(ascii.encode('0'));
-      _connection!.output.allSent.then((_) {
-        debugPrint("Bluetooth Signal Sent: 0 (Close All)");
-      });
-    } else {
-      debugPrint("Cannot send: Bluetooth not connected");
-      _initBluetooth();
-    }
+    _writeSignal('0');
   }
 
   @override
   void dispose() {
-    _connection?.dispose();
+    _scanSubscription?.cancel();
+    _connectionSubscription?.cancel();
+    _adapterStateSubscription?.cancel();
+    _device?.disconnect();
     super.dispose();
   }
 }
