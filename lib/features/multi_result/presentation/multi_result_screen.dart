@@ -1376,7 +1376,6 @@ class _MultiResultScreenState extends ConsumerState<MultiResultScreen> {
             // multi-item classifier instead of the on-device TFLite/RT-DETR
             // pipeline.
             ref.read(useGeminiProvider.notifier).state = true;
-            ref.read(rescanProvider.notifier).state = true;
             ctx.go('/scanning');
           },
           child: Padding(

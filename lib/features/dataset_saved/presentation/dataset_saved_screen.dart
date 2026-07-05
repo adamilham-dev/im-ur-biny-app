@@ -612,7 +612,6 @@ class DatasetSavedScreen extends ConsumerWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(999),
           onTap: () {
-            ref.read(rescanProvider.notifier).state = true;
             context.go('/scanning');
           },
           child: Padding(

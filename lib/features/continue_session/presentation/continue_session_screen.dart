@@ -263,7 +263,6 @@ class _ContinueSessionScreenState extends ConsumerState<ContinueSessionScreen>
                   height: AppResponsive.rs(size, 54).clamp(44.0, 56.0),
                   child: ElevatedButton(
                     onPressed: () {
-                      ref.read(rescanProvider.notifier).state = true;
                       context.go('/scanning');
                     },
                     style: ElevatedButton.styleFrom(
@@ -322,7 +321,6 @@ class _ContinueSessionScreenState extends ConsumerState<ContinueSessionScreen>
                   height: AppResponsive.rs(size, 54).clamp(44.0, 56.0),
                   child: ElevatedButton(
                     onPressed: () {
-                      ref.read(rescanProvider.notifier).state = true;
                       context.go('/scanning');
                     },
                     style: ElevatedButton.styleFrom(

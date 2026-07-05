@@ -719,7 +719,6 @@ class _ResultScreenState extends ConsumerState<ResultScreen> {
   /// fallback, no inline loading dialog (the scanning animation is the UI).
   void _onPindaiLagiTapped(BuildContext context, WidgetRef ref) {
     ref.read(useGeminiProvider.notifier).state = true;
-    ref.read(rescanProvider.notifier).state = true;
     context.go('/scanning');
   }
 
