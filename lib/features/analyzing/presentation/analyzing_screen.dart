@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter_svg/flutter_svg.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -453,9 +455,6 @@ class _AnalyzingScreenState extends ConsumerState<AnalyzingScreen>
                         children: [
                           _buildStep(
                             size: size,
-                            icon: _completedSteps >= 1
-                                ? Icons.check_rounded
-                                : Icons.visibility_rounded,
                             text: 'Mengamati bentuk & material',
                             isCompleted: _completedSteps >= 1,
                             isActive: _completedSteps == 0,
@@ -464,9 +463,6 @@ class _AnalyzingScreenState extends ConsumerState<AnalyzingScreen>
                           const SizedBox(height: 4),
                           _buildStep(
                             size: size,
-                            icon: _completedSteps >= 2
-                                ? Icons.check_rounded
-                                : Icons.compare_rounded,
                             text: 'Membandingkan dengan database sampah',
                             isCompleted: _completedSteps >= 2,
                             isActive: _completedSteps == 1,
@@ -475,9 +471,6 @@ class _AnalyzingScreenState extends ConsumerState<AnalyzingScreen>
                           const SizedBox(height: 4),
                           _buildStep(
                             size: size,
-                            icon: _completedSteps >= 3
-                                ? Icons.check_rounded
-                                : Icons.auto_awesome_rounded,
                             text: 'Menyimpulkan kategori yang tepat',
                             isCompleted: _completedSteps >= 3,
                             isActive: _completedSteps == 2,
@@ -498,7 +491,6 @@ class _AnalyzingScreenState extends ConsumerState<AnalyzingScreen>
 
   Widget _buildStep({
     required Size size,
-    required IconData icon,
     required String text,
     required bool isCompleted,
     required bool isActive,
@@ -507,13 +499,6 @@ class _AnalyzingScreenState extends ConsumerState<AnalyzingScreen>
     final bgColor = isActive
         ? AppColors.primary.withValues(alpha: 0.16)
         : Colors.transparent;
-    final iconBgColor = isCompleted
-        ? const Color(0xFF3AD6A0)
-        : isActive
-        ? AppColors.primary.withValues(alpha: 0.3)
-        : Colors.white.withValues(alpha: 0.1);
-    final iconColor = isCompleted || isActive ? Colors.white : Colors.white54;
-    final stepIconSize = AppResponsive.sp(size, 16).clamp(13.0, 16.0);
     final stepFontSize = AppResponsive.sp(
       size,
       isPortrait ? 14 : 18,
@@ -539,32 +524,25 @@ class _AnalyzingScreenState extends ConsumerState<AnalyzingScreen>
           SizedBox(
             width: 34,
             height: 34,
-            child: isActive && !isCompleted
-                ? AnimatedBuilder(
+            child: isCompleted
+                ? SvgPicture.asset(
+                    'assets/images/page_12/check.svg',
+                    width: 34,
+                    height: 34,
+                  )
+                : AnimatedBuilder(
                     animation: _spinController,
                     builder: (context, _) {
                       return Transform.rotate(
                         angle: _spinController.value * 6.28,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: iconBgColor,
-                            borderRadius: BorderRadius.circular(17),
-                          ),
-                          child: Icon(
-                            icon,
-                            size: stepIconSize,
-                            color: iconColor,
-                          ),
+                        child: CircularProgressIndicator(
+                          value: 0.25,
+                          color: const Color(0xFFA892FF),
+                          backgroundColor: const Color(0xFFC9BEFF),
+                          strokeWidth: 4.5,
                         ),
                       );
                     },
-                  )
-                : Container(
-                    decoration: BoxDecoration(
-                      color: iconBgColor,
-                      borderRadius: BorderRadius.circular(17),
-                    ),
-                    child: Icon(icon, size: stepIconSize, color: iconColor),
                   ),
           ),
           SizedBox(
