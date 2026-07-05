@@ -14,6 +14,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_responsive.dart';
 import '../../../shared/widgets/biny_hero.dart';
 import '../../detail_item/presentation/detail_item_screen.dart';
+import '../../../core/providers/bluetooth_provider.dart';
 
 /// Pixel-perfect match to Figma 226:3428 "09 · Multi-Result (Mixed Waste)"
 /// in 1194×834 frame (landscape iPad).
@@ -1433,6 +1434,7 @@ class _MultiResultScreenState extends ConsumerState<MultiResultScreen> {
             ref
                 .read(scanProvider.notifier)
                 .saveMultiToLocalDataset(results);
+            ref.read(bluetoothProvider.notifier).sendCloseAll();
             ctx.go('/feedback');
           },
           child: Padding(

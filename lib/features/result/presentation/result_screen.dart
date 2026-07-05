@@ -798,6 +798,7 @@ class _ResultScreenState extends ConsumerState<ResultScreen> {
                 .read(sessionProvider.notifier)
                 .addXP(SessionService.xpExistingCategory);
             ref.read(sessionProvider.notifier).addScan();
+            ref.read(bluetoothProvider.notifier).sendCloseAll();
             context.go('/feedback');
           },
           child: Padding(

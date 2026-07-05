@@ -11,6 +11,7 @@ import '../../../core/models/user_session.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_responsive.dart';
 import '../../../shared/widgets/biny_hero.dart';
+import '../../../core/providers/bluetooth_provider.dart';
 
 /// 12 · Thank You — pixel-perfect match to Figma 226:1947.
 ///
@@ -430,6 +431,7 @@ class _ThankYouScreenState extends ConsumerState<ThankYouScreen>
 
   void _onSelesaiPressed() {
     setState(() => _isLoading = true);
+    ref.read(bluetoothProvider.notifier).sendCloseAll();
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
         ref.read(sessionProvider.notifier).resetSession();

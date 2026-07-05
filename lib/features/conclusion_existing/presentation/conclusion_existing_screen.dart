@@ -810,6 +810,7 @@ class _ConclusionExistingScreenState extends ConsumerState<ConclusionExistingScr
                 .read(sessionProvider.notifier)
                 .addXP(SessionService.xpExistingCategory);
             ref.read(sessionProvider.notifier).addScan();
+            ref.read(bluetoothProvider.notifier).sendCloseAll();
             context.go('/dataset-saved');
           },
           child: Padding(

@@ -9,6 +9,7 @@ import '../../../core/providers/scan_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_responsive.dart';
 import '../../../shared/widgets/biny_hero.dart';
+import '../../../core/providers/bluetooth_provider.dart';
 
 /// Pixel-perfect match to Figma 226:1811 "15 · Dataset Saved"
 /// in 1194×834 frame (landscape iPad).
@@ -662,7 +663,10 @@ class DatasetSavedScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(999),
         child: InkWell(
           borderRadius: BorderRadius.circular(999),
-          onTap: () => context.go('/continue-session'),
+          onTap: () {
+            ref.read(bluetoothProvider.notifier).sendCloseAll();
+            context.go('/continue-session');
+          },
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
             child: Center(
