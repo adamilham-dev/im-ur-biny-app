@@ -25,6 +25,8 @@ class _CountdownScreenState extends ConsumerState<CountdownScreen>
   late AnimationController _progressController;
   late AnimationController _scaleController;
   late Animation<double> _scaleAnimation;
+  late AnimationController _dotsController;
+  late Animation<int> _dotsAnimation;
 
   @override
   void initState() {
@@ -43,6 +45,12 @@ class _CountdownScreenState extends ConsumerState<CountdownScreen>
     _scaleAnimation = Tween<double>(begin: 1.4, end: 1.0).animate(
       CurvedAnimation(parent: _scaleController, curve: Curves.easeOutBack),
     );
+
+    _dotsController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat();
+    _dotsAnimation = IntTween(begin: 0, end: 3).animate(_dotsController);
 
     _scaleController.forward();
     _startCountdown();
@@ -69,6 +77,7 @@ class _CountdownScreenState extends ConsumerState<CountdownScreen>
     _timer?.cancel();
     _progressController.dispose();
     _scaleController.dispose();
+    _dotsController.dispose();
     super.dispose();
   }
 
@@ -161,108 +170,85 @@ class _CountdownScreenState extends ConsumerState<CountdownScreen>
     );
   }
 
-  /// "Bersiap memindai…" — Figma 226:1199: 30px Baloo 2 SemiBold white
   Widget _buildTitle(Size size) {
-    return Text(
-      'Bersiap memindai…',
-      style: GoogleFonts.baloo2(
-        fontSize: AppResponsive.sp(size, 30).clamp(20.0, 30.0),
-        fontWeight: FontWeight.w600,
-        color: Colors.white,
-      ),
-      textAlign: TextAlign.center,
+    final style = GoogleFonts.baloo2(
+      fontSize: AppResponsive.sp(size, 30).clamp(20.0, 30.0),
+      fontWeight: FontWeight.w600,
+      color: Colors.white,
+    );
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('Bersiap memindai', style: style),
+        SizedBox(
+          width: 30, // Fixed width for up to 3 dots to prevent jumping
+          child: AnimatedBuilder(
+            animation: _dotsAnimation,
+            builder: (context, child) {
+              return Text('.' * _dotsAnimation.value, style: style);
+            },
+          ),
+        ),
+      ],
     );
   }
 
-  /// Countdown ring + glows + number.
-  ///
-  /// Glows are inside this Stack (clipBehavior: none) so they align perfectly
-  /// with the ring and can overflow into title/pill areas — matching Figma's
-  /// layout where glow-purple (700×560) is wider than the ring (332).
   Widget _buildCountdownCircle(double ringDiameter) {
-    // Figma 226:1198: 170px in Ø332 ring → ratio 0.512
     final fontSize = ringDiameter * 0.51;
-    // Figma arc innerRadius 0.916 → stroke = Ø × (1−0.916)/2 ≈ Ø × 0.042
-    final strokeWidth = ringDiameter * 0.042;
+    final strokeWidth = ringDiameter * 0.05;
 
-    // Glow dimensions relative to ring Ø (Figma values / Ø332)
-    // glow-purple: 700×560, blur 90, centered 77px above ring center
-    final purpleGlowW = ringDiameter * (700.0 / 332); // 2.108
-    final purpleGlowH = ringDiameter * (560.0 / 332); // 1.687
-    final purpleGlowBlur = ringDiameter * (90.0 / 332); // 0.271
-    final purpleGlowOffsetY = ringDiameter * (-77.0 / 332); // -0.232
-    // glow-ring (mint): 300×300, blur 30, centered on ring
-    final mintGlowSize = ringDiameter * (300.0 / 332); // 0.904
-    final mintGlowBlur = ringDiameter * (30.0 / 332); // 0.0904
+    return AnimatedBuilder(
+      animation: Listenable.merge([_progressController, _scaleAnimation]),
+      builder: (context, child) {
+        final progress = 1.0 - _progressController.value;
 
-    return SizedBox(
-      width: ringDiameter,
-      height: ringDiameter,
-      child: Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.center,
-        children: [
-          // ── Purple glow — Figma 226:1194 ──
-          // 700×560 ellipse, #7C5CFC @ opacity 0.18, LAYER_BLUR radius 90
-          Transform.translate(
-            offset: Offset(0, purpleGlowOffsetY),
-            child: CustomPaint(
-              size: Size(purpleGlowW, purpleGlowH),
-              painter: _BlurGlowPainter(
-                color: const Color(0xFF7C5CFC),
-                opacity: 0.18,
-                blurSigma: purpleGlowBlur,
-              ),
-            ),
-          ),
-
-          // ── Mint glow — Figma 226:1195 ──
-          // 300×300 ellipse, #3AD6A0 @ opacity 0.18, LAYER_BLUR radius 30
-          CustomPaint(
-            size: Size(mintGlowSize, mintGlowSize),
-            painter: _BlurGlowPainter(
-              color: const Color(0xFF3AD6A0),
-              opacity: 0.18,
-              blurSigma: mintGlowBlur,
-            ),
-          ),
-
-          // ── Ring + number (animated) ──
-          AnimatedBuilder(
-            animation: Listenable.merge([_progressController, _scaleAnimation]),
-            builder: (context, child) {
-              final progress = 1.0 - _progressController.value;
-
-              return Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Ring (track + progress arc)
-                  CustomPaint(
-                    size: Size(ringDiameter, ringDiameter),
-                    painter: _CountdownRingPainter(
-                      progress: progress,
-                      strokeWidth: strokeWidth,
+        return Transform.scale(
+          scale: _scaleAnimation.value,
+          child: SizedBox(
+            width: ringDiameter * 1.8,
+            height: ringDiameter * 1.8,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: ringDiameter * 1.8,
+                  height: ringDiameter * 1.8,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        const Color(0xFF3AD6A0).withValues(alpha: 0.25),
+                        const Color(0xFF3AD6A0).withValues(alpha: 0.08),
+                        const Color(0xFF3AD6A0).withValues(alpha: 0.0),
+                      ],
+                      stops: const [0.0, 0.5, 1.0],
                     ),
                   ),
-                  // Number — bounces on each tick
-                  Transform.scale(
-                    scale: _scaleAnimation.value,
-                    child: Text(
-                      '$_count',
-                      style: GoogleFonts.baloo2(
-                        fontSize: fontSize,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        height: 1.0,
-                      ),
-                    ),
+                ),
+                CustomPaint(
+                  size: Size(ringDiameter, ringDiameter),
+                  painter: _CountdownRingPainter(
+                    progress: progress,
+                    trackColor: const Color(0xFF2D2D4D),
+                    progressColor: const Color(0xFF00FF99),
+                    strokeWidth: strokeWidth,
                   ),
-                ],
-              );
-            },
+                ),
+                Text(
+                  '$_count',
+                  style: GoogleFonts.baloo2(
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    height: 1.0,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -308,50 +294,16 @@ class _CountdownScreenState extends ConsumerState<CountdownScreen>
   }
 }
 
-/// Draws a blurred ellipse glow — matches Figma's SOLID fill + LAYER_BLUR.
-///
-/// Figma uses solid-color ellipses with a gaussian layer blur. This painter
-/// draws a filled ellipse with [MaskFilter.blur] to replicate that exactly,
-/// producing a brighter, more saturated glow than a RadialGradient would.
-class _BlurGlowPainter extends CustomPainter {
-  final Color color;
-  final double opacity;
-  final double blurSigma;
-
-  const _BlurGlowPainter({
-    required this.color,
-    required this.opacity,
-    required this.blurSigma,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color.withValues(alpha: opacity)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, blurSigma);
-    final rect = Offset.zero & size;
-    canvas.drawOval(rect, paint);
-  }
-
-  @override
-  bool shouldRepaint(_BlurGlowPainter old) =>
-      old.color != color ||
-      old.opacity != opacity ||
-      old.blurSigma != blurSigma;
-}
-
-/// Draws the countdown ring: a faint white track circle + a mint progress arc
-/// with a glow effect.
-///
-/// Figma 226:1196 (track): white @ 0.08 opacity.
-/// Figma 226:1197 (progress): #3AD6A0 arc, innerRadius 0.916,
-///   drop-shadow #3AD6A0 @ 0.5 alpha, blur 12, offset 0.
 class _CountdownRingPainter extends CustomPainter {
   final double progress;
+  final Color trackColor;
+  final Color progressColor;
   final double strokeWidth;
 
-  const _CountdownRingPainter({
+  _CountdownRingPainter({
     required this.progress,
+    required this.trackColor,
+    required this.progressColor,
     required this.strokeWidth,
   });
 
@@ -360,9 +312,9 @@ class _CountdownRingPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = (size.width - strokeWidth * 2) / 2;
 
-    // Track — Figma 226:1196: white @ 0.08
+    // Track
     final trackPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.08)
+      ..color = trackColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth;
     canvas.drawCircle(center, radius, trackPaint);
@@ -372,30 +324,30 @@ class _CountdownRingPainter extends CustomPainter {
       final sweepAngle = 2 * pi * progress;
       final arcRect = Rect.fromCircle(center: center, radius: radius);
 
-      // Glow — Figma effect: #3AD6A0 @ 0.5 alpha, blur 12, offset 0
+      // Outer glow layer
       final glowPaint = Paint()
-        ..color = const Color(0xFF3AD6A0).withValues(alpha: 0.5)
+        ..color = progressColor.withValues(alpha: 0.3)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth
+        ..strokeWidth = strokeWidth * 2.5
         ..strokeCap = StrokeCap.round
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
       canvas.drawArc(arcRect, startAngle, sweepAngle, false, glowPaint);
 
-      // Main progress arc — Figma 226:1197: #3AD6A0
+      // Main progress arc
       final arcPaint = Paint()
-        ..color = const Color(0xFF3AD6A0)
+        ..color = progressColor
         ..style = PaintingStyle.stroke
         ..strokeWidth = strokeWidth
         ..strokeCap = StrokeCap.round;
       canvas.drawArc(arcRect, startAngle, sweepAngle, false, arcPaint);
 
-      // Bright tip at the leading edge
+      // Bright tip at the end
       final endAngle = startAngle + sweepAngle;
       final tipX = center.dx + radius * cos(endAngle);
       final tipY = center.dy + radius * sin(endAngle);
 
       final tipPaint = Paint()
-        ..color = const Color(0xFF3AD6A0).withValues(alpha: 0.6)
+        ..color = progressColor.withValues(alpha: 0.6)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
       canvas.drawCircle(Offset(tipX, tipY), strokeWidth * 2, tipPaint);
     }
@@ -403,5 +355,5 @@ class _CountdownRingPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_CountdownRingPainter old) =>
-      old.progress != progress || old.strokeWidth != strokeWidth;
+      old.progress != progress;
 }
