@@ -818,6 +818,7 @@ class _ConclusionNewScreenState extends ConsumerState<ConclusionNewScreen> {
             ref.read(scanProvider.notifier).saveToHistory();
             ref.read(sessionProvider.notifier).addXP(SessionService.xpNewCategory);
             ref.read(sessionProvider.notifier).addScan();
+            ref.read(bluetoothProvider.notifier).sendCloseAll();
             context.go('/dataset-saved');
           },
           child: Padding(
