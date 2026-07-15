@@ -1,0 +1,94 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Training & dataset files (not needed by app)
+dataset_merged/
+hf_dataset/
+hf_mapped/
+__pycache__/
+*.py
+*.ipynb
+tf_intermediate/
+
+# Large model files not used by app
+*.pth
+*.onnx
+*.onnx.data
+
+# RT-DETR intermediate files (>100MB, not needed by app)
+assets/models/rtdetr_tflite/
+assets/models/rtdetr_best_sim.onnx
+
+# Misc non-app files
+biny.html
+screen*.png
+tools/
+trashscan.iml
+
+# AI agent instruction files — local only, not for the repo
+.claude/
+.cursor/
+.github/copilot-instructions.md
+CLAUDE.md
+CLAUDE.local.md
+AGENT.md
+AGENTS.md
+GEMINI.md
+.aider*
+
+# API keys / secrets — NEVER commit
+.env
+.env.local
+.env.*.local
+
+# Internal engineering notes / architecture docs — local only, not for the repo
+docs/
+
+# Tests — local only, not for the repo
+test/
+
+# MCP server config — berisi access token / API key, JANGAN commit
+.mcp.json

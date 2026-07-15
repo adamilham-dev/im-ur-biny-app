@@ -1,0 +1,8 @@
+<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Recycle symbol - three chasing arrows -->
+  <path d="M20 6L26 16H14L20 6Z" fill="#90EE90" fill-opacity="0.7"/>
+  <path d="M8 22L14 16L20 22L14 28L8 22Z" fill="#90EE90" fill-opacity="0.7"/>
+  <path d="M32 22L26 16L20 22L26 28L32 22Z" fill="#90EE90" fill-opacity="0.7"/>
+  <path d="M12 18L20 24L14 30" stroke="#66BB6A" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+  <path d="M28 18L20 24L26 30" stroke="#66BB6A" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+</svg>

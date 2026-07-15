@@ -1,0 +1,9 @@
+<svg width="350" height="350" viewBox="0 0 350 350" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="blobBlue" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#D6E8FF" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#D6E8FF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="175" cy="175" r="175" fill="url(#blobBlue)"/>
+</svg>
