@@ -15,6 +15,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_responsive.dart';
 import '../../../shared/widgets/biny_hero.dart';
 import '../../../shared/widgets/detection_box_view.dart';
+import '../../../core/providers/bluetooth_provider.dart';
 import '../../detail_item/presentation/detail_item_screen.dart';
 
 /// Pixel-perfect "09 · Multi-Result (Mixed Waste)"
@@ -38,8 +39,22 @@ class MultiResultScreen extends ConsumerStatefulWidget {
 class _MultiResultScreenState extends ConsumerState<MultiResultScreen> {
   int _selectedIndex = 0;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final categories = results
+          .where((r) => _resultType(r) != _ResultType.unknown)
+          .map((r) => r.category)
+          .toList();
+      if (categories.isNotEmpty) {
+        ref.read(bluetoothProvider.notifier).sendCategories(categories);
+      }
+    });
+  }
+
   static const double _readableThreshold = 0.70;
-  static const double _unsureThreshold = 0.50;
+  static const double _unsureThreshold = 0.40;
 
   // Read multi-results DIRECTLY from the ScanNotifier instead of via
   // `multiResultsProvider`. The Provider caches its value on first read
@@ -1663,6 +1678,7 @@ class _MultiResultScreenState extends ConsumerState<MultiResultScreen> {
             ref
                 .read(scanProvider.notifier)
                 .saveMultiToLocalDataset(results);
+            ref.read(bluetoothProvider.notifier).sendCloseAll();
             ctx.go('/feedback');
           },
           child: Padding(

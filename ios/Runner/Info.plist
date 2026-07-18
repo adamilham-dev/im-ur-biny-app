@@ -68,5 +68,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Aplikasi ini membutuhkan akses Bluetooth untuk terhubung ke perangkat SmartBin.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Aplikasi ini membutuhkan akses Bluetooth Peripheral untuk mengontrol SmartBin.</string>
 </dict>
 </plist>

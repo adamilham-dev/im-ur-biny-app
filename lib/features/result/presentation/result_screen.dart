@@ -14,6 +14,7 @@ import '../../../core/services/session_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_responsive.dart';
 import '../../../shared/widgets/biny_hero.dart';
+import '../../../core/providers/bluetooth_provider.dart';
 import '../../detail_item/presentation/detail_item_screen.dart';
 
 /// Pixel-perfect "08 · Result Detection"
@@ -783,6 +784,7 @@ class ResultScreen extends ConsumerWidget {
                 .read(sessionProvider.notifier)
                 .addXP(SessionService.xpExistingCategory);
             ref.read(sessionProvider.notifier).addScan();
+            ref.read(bluetoothProvider.notifier).sendCloseAll();
             context.go('/feedback');
           },
           child: Padding(

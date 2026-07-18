@@ -187,10 +187,10 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
         await _holdScanAnimation(analyzeStart);
 
         if (!mounted) return;
-        // Treat the scan as "unknown" only if NO item cleared the confidence
-        // threshold (confidence-only — no category override).
-        final anyConfident = results.any((r) => r.confidence > 0.50);
-        if (results.isNotEmpty && anyConfident) {
+        // In mixed scan mode, if any object/waste is detected (results is not empty),
+        // we always navigate to the multi-result screen to let the user see the items
+        // and optionally check (Periksa) or run Cloud AI (Analisis AI) on them.
+        if (results.isNotEmpty) {
           context.go('/multi-result');
         } else {
           context.go('/unknown-detected');

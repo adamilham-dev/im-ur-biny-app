@@ -13,6 +13,7 @@ import '../../../core/services/session_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_responsive.dart';
 import '../../../shared/widgets/biny_hero.dart';
+import '../../../core/providers/bluetooth_provider.dart';
 
 /// Pixel-perfect "13 · Conclusion — Kategori Baru"
 /// in 1194×834 frame (landscape iPad).
@@ -801,6 +802,7 @@ class ConclusionNewScreen extends ConsumerWidget {
             ref.read(scanProvider.notifier).saveToHistory();
             ref.read(sessionProvider.notifier).addXP(SessionService.xpNewCategory);
             ref.read(sessionProvider.notifier).addScan();
+            ref.read(bluetoothProvider.notifier).sendCloseAll();
             context.go('/dataset-saved');
           },
           child: Padding(

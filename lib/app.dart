@@ -31,6 +31,9 @@ import 'features/mixed_partial/presentation/mixed_partial_screen.dart';
 import 'features/mixed_too_many/presentation/mixed_too_many_screen.dart';
 import 'features/mixed_check/presentation/mixed_check_screen.dart';
 import 'features/feedback/presentation/feedback_screen.dart';
+import 'core/providers/bluetooth_provider.dart';
+import 'core/providers/scan_provider.dart';
+
 
 // ── Page transition tuning ──────────────────────────────────────────────
 // Smooth fade + directional slide. Direction is derived from the
@@ -232,6 +235,13 @@ class ImUrBinyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(_routerProvider);
+    ref.watch(bluetoothProvider);
+
+    ref.listen(scanResultProvider, (previous, next) {
+      if (next != null) {
+        ref.read(bluetoothProvider.notifier).sendCategory(next.category);
+      }
+    });
 
     return MaterialApp.router(
       title: "I'm ur Biny",
