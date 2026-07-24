@@ -31,11 +31,27 @@ import '../../../core/providers/bluetooth_provider.dart';
 ///      + description
 ///   3. Dataset chip 520×74 (white, r18) with "+10 XP" pill
 ///   4. Buttons "Koreksi" (#EDE8FF drop-shadow) + "Selesai" (#7C5CFC)
-class ConclusionExistingScreen extends ConsumerWidget {
+class ConclusionExistingScreen extends ConsumerStatefulWidget {
   const ConclusionExistingScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ConclusionExistingScreen> createState() => _ConclusionExistingScreenState();
+}
+
+class _ConclusionExistingScreenState extends ConsumerState<ConclusionExistingScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final result = ref.read(scanResultProvider);
+      if (result != null) {
+        ref.read(bluetoothProvider.notifier).sendCategory(result.category);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final isPortrait = AppResponsive.isPortrait(size);
     final scanResult = ref.watch(scanResultProvider);
@@ -303,7 +319,7 @@ class ConclusionExistingScreen extends ConsumerWidget {
                           height: 8 * scale,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: catColor,
+                            color: result.displayCategoryColor,
                           ),
                         ),
                         SizedBox(width: 8 * scale),
@@ -311,7 +327,7 @@ class ConclusionExistingScreen extends ConsumerWidget {
                           TextSpan(
                             children: [
                               TextSpan(
-                                text: '${result.category.name} ·',
+                                text: '${result.displayCategoryName} ·',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 14 * scale,
                                   fontWeight: FontWeight.w700,
@@ -516,7 +532,7 @@ class ConclusionExistingScreen extends ConsumerWidget {
     final descSize = isPhone ? 14.0 : 17.0 * scale;
     final badgeSize = isPhone ? 11.0 : 14.0 * scale;
     final gap16 = isPhone ? 8.0 : 16.0 * scale;
-    final catColor = result.category.color;
+    final catColor = result.displayCategoryColor;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -535,7 +551,7 @@ class ConclusionExistingScreen extends ConsumerWidget {
           children: [
             Flexible(
               child: Text(
-                result.category.name,
+                result.displayCategoryName,
                 style: GoogleFonts.baloo2(
                   fontSize: catSize,
                   fontWeight: FontWeight.w800,
@@ -579,7 +595,7 @@ class ConclusionExistingScreen extends ConsumerWidget {
           width: isPhone ? double.infinity : 480.0 * scale,
           child: Text(
             'Dari bentuk & materialnya, Biny yakin ini masuk kategori '
-            '${result.category.name} yang sudah ada di daftar.',
+            '${result.displayCategoryName} yang sudah ada di daftar.',
             style: GoogleFonts.plusJakartaSans(
               fontSize: descSize,
               fontWeight: FontWeight.w500,
@@ -787,13 +803,12 @@ class ConclusionExistingScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(999),
         child: InkWell(
           borderRadius: BorderRadius.circular(999),
-          onTap: () {
-            ref.read(scanProvider.notifier).saveToHistory();
+          onTap: () async {
+            await ref.read(scanProvider.notifier).saveToHistory();
             ref
                 .read(sessionProvider.notifier)
                 .addXP(SessionService.xpExistingCategory);
             ref.read(sessionProvider.notifier).addScan();
-            ref.read(bluetoothProvider.notifier).sendCloseAll();
             context.go('/feedback');
           },
           child: Padding(

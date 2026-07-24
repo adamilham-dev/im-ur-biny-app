@@ -206,13 +206,12 @@ class BluetoothStateNotifier extends StateNotifier<BTConnectionState> {
       case WasteCategory.logam:
         signal = 'L';
         break;
-      case WasteCategory.kaca:
-      case WasteCategory.residu:
-        signal = 'R';
-        break;
       case WasteCategory.organik:
-      case WasteCategory.lainnya:
         signal = 'O';
+        break;
+      case WasteCategory.residu:
+      case WasteCategory.lainnya:
+        signal = 'R';
         break;
     }
 
@@ -234,13 +233,12 @@ class BluetoothStateNotifier extends StateNotifier<BTConnectionState> {
         case WasteCategory.logam:
           signals.add('L');
           break;
-        case WasteCategory.kaca:
-        case WasteCategory.residu:
-          signals.add('R');
-          break;
         case WasteCategory.organik:
-        case WasteCategory.lainnya:
           signals.add('O');
+          break;
+        case WasteCategory.residu:
+        case WasteCategory.lainnya:
+          signals.add('R');
           break;
       }
     }

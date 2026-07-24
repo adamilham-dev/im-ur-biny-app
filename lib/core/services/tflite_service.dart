@@ -14,7 +14,6 @@ class TFLiteService {
   static const String _modelPath = 'assets/models/waste_classifier.tflite';
 
   static const List<String> _classNames = [
-    'Kaca',
     'Kertas',
     'Logam',
     'Organik',
@@ -34,12 +33,13 @@ class TFLiteService {
 
     try {
       final input = _preprocess(imageBytes);
-      final output = List.filled(1 * _classNames.length, 0.0)
-          .reshape([1, _classNames.length]);
+      final output = List.filled(1 * 6, 0.0) // Model has 6 outputs
+          .reshape([1, 6]);
       _interpreter!.run(input, output);
 
-      final probs =
-          List<double>.from((output[0] as List).cast<double>());
+      final rawProbs = List<double>.from((output[0] as List).cast<double>());
+      final probs = rawProbs.sublist(1); // Drop index 0 (formerly Kaca)
+      
       final maxIdx = _argmax(probs);
       return (name: _classNames[maxIdx], confidence: probs[maxIdx]);
     } catch (_) {
@@ -85,13 +85,13 @@ class TFLiteService {
       final input = _preprocess(imageBytes);
 
       // 2. Run inference
-      final output = List.filled(1 * _classNames.length, 0.0)
-          .reshape([1, _classNames.length]);
+      final output = List.filled(1 * 6, 0.0)
+          .reshape([1, 6]);
       _interpreter!.run(input, output);
 
       // 3. Read probabilities
-      final probs =
-          List<double>.from((output[0] as List).cast<double>());
+      final rawProbs = List<double>.from((output[0] as List).cast<double>());
+      final probs = rawProbs.sublist(1); // Drop index 0
       debugPrint('TFLiteService: Probabilities = ${_formatProbs(probs)}');
 
       // 4. Build probability map for all classes
@@ -123,19 +123,25 @@ class TFLiteService {
       }
 
       // 6. Map index to category — confident prediction
-      final category = _mapIndexToCategory(maxIdx);
-      final itemName = _generateItemName(category);
+      final mapped = _mapIndexToCategory(maxIdx);
+      final category = mapped.$1;
+      final dynamicName = mapped.$2;
+      
+      final itemName = dynamicName != null ? 'Sampah $dynamicName' : _generateItemName(category);
 
       debugPrint(
-        'TFLiteService: Predicted ${category.name} '
+        'TFLiteService: Predicted ${dynamicName ?? category.name} '
         '(${(maxProb * 100).toStringAsFixed(1)}%)',
       );
 
       return ScanResult(
         itemName: itemName,
         category: category,
+        dynamicCategoryName: dynamicName,
         confidence: maxProb,
-        description: 'Sampah kategori ${category.name} yang terdeteksi.',
+        description: dynamicName != null 
+            ? 'Sampah kategori $dynamicName yang terdeteksi.' 
+            : 'Sampah kategori ${category.name} yang terdeteksi.',
         disposalInfo: category.disposalInfo,
         allProbabilities: probMap,
       );
@@ -282,22 +288,20 @@ class TFLiteService {
   /// Map class index to WasteCategory.
   ///
   /// Order: ["Kaca", "Kertas", "Logam", "Organik", "Plastik", "Residu"]
-  WasteCategory _mapIndexToCategory(int index) {
+  (WasteCategory, String?) _mapIndexToCategory(int index) {
     switch (index) {
       case 0:
-        return WasteCategory.kaca;
+        return (WasteCategory.kertas, null);
       case 1:
-        return WasteCategory.kertas;
+        return (WasteCategory.logam, null);
       case 2:
-        return WasteCategory.logam;
+        return (WasteCategory.organik, null);
       case 3:
-        return WasteCategory.organik;
+        return (WasteCategory.plastik, null);
       case 4:
-        return WasteCategory.plastik;
-      case 5:
-        return WasteCategory.residu;
+        return (WasteCategory.residu, null);
       default:
-        return WasteCategory.lainnya;
+        return (WasteCategory.lainnya, null);
     }
   }
 
@@ -312,8 +316,6 @@ class TFLiteService {
         return 'Sampah Organik';
       case WasteCategory.logam:
         return 'Sampah Logam';
-      case WasteCategory.kaca:
-        return 'Sampah Kaca';
       case WasteCategory.residu:
         return 'Sampah Residu';
       case WasteCategory.lainnya:
@@ -393,12 +395,12 @@ class TFLiteService {
 
         // Classify this individual crop
         final input = _preprocess(cropBytes);
-        final output = List.filled(1 * _classNames.length, 0.0)
-            .reshape([1, _classNames.length]);
+        final output = List.filled(1 * 6, 0.0) // Model has 6 outputs
+            .reshape([1, 6]);
         _interpreter!.run(input, output);
 
-        final probs =
-            List<double>.from((output[0] as List).cast<double>());
+        final rawProbs = List<double>.from((output[0] as List).cast<double>());
+        final probs = rawProbs.sublist(1); // Drop index 0 (formerly Kaca)
         debugPrint(
           'TFLiteService: Region $i probs = ${_formatProbs(probs)}',
         );
@@ -423,12 +425,17 @@ class TFLiteService {
             allProbabilities: probMap,
           ));
         } else {
-          final category = _mapIndexToCategory(maxIdx);
+          final mapped = _mapIndexToCategory(maxIdx);
+          final category = mapped.$1;
+          final dynamicName = mapped.$2;
+          final itemName = dynamicName != null ? 'Sampah $dynamicName' : _generateItemName(category);
+          
           results.add(ScanResult(
-            itemName: _generateItemName(category),
+            itemName: itemName,
             category: category,
+            dynamicCategoryName: dynamicName,
             confidence: maxProb,
-            description: 'Sampah kategori ${category.name} yang terdeteksi.',
+            description: dynamicName != null ? 'Sampah kategori $dynamicName yang terdeteksi.' : 'Sampah kategori ${category.name} yang terdeteksi.',
             disposalInfo: category.disposalInfo,
             allProbabilities: probMap,
           ));

@@ -443,19 +443,6 @@ class _BinyMascotState extends State<BinyMascot> with TickerProviderStateMixin {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              // ── FX layer (behind mascot) ──
-              if (c.fx != _Fx.none)
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: _FxPainter(
-                      type: c.fx,
-                      progress: _fxCtrl.value,
-                      vbW: _vbW,
-                      vbH: _vbH,
-                    ),
-                  ),
-                ),
-
               // ── Mascot group (bob + tilt) ──
               Transform.translate(
                 offset: Offset(0, bobY * h / _vbH),
@@ -509,6 +496,19 @@ class _BinyMascotState extends State<BinyMascot> with TickerProviderStateMixin {
                   ),
                 ),
               ),
+
+              // ── FX layer (in front of mascot) ──
+              if (c.fx != _Fx.none)
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: _FxPainter(
+                      type: c.fx,
+                      progress: _fxCtrl.value,
+                      vbW: _vbW,
+                      vbH: _vbH,
+                    ),
+                  ),
+                ),
             ],
           ),
         );

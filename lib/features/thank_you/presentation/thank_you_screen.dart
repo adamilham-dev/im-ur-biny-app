@@ -412,6 +412,7 @@ class _ThankYouScreenState extends ConsumerState<ThankYouScreen>
               // the session (XP/items) intact — they're continuing the same
               // kiosk session. Goes back to mode select so they can pick
               // single/mixed again for the next sort.
+              ref.read(bluetoothProvider.notifier).sendCloseAll();
               ref.read(scanProvider.notifier).clearResult();
               ref.read(capturedImageProvider.notifier).state = null;
               context.go('/mode-select');

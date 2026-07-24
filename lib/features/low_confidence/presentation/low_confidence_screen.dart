@@ -199,7 +199,7 @@ class LowConfidenceScreen extends ConsumerWidget {
     final pad = 15.0 * scale;
     final cardRadius = 32.0 * scale;
     final innerRadius = 22.0 * scale;
-    final catColor = result.category.color;
+    final catColor = result.displayColor;
 
     return Container(
       width: isPhone ? null : cardSize,
@@ -292,7 +292,7 @@ class LowConfidenceScreen extends ConsumerWidget {
                           height: 8 * scale,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: catColor,
+                            color: result.displayCategoryColor,
                           ),
                         ),
                         SizedBox(width: 8 * scale),
@@ -300,7 +300,7 @@ class LowConfidenceScreen extends ConsumerWidget {
                           TextSpan(
                             children: [
                               TextSpan(
-                                text: '${result.category.name} ·',
+                                text: '${result.displayCategoryName} ·',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 14 * scale,
                                   fontWeight: FontWeight.w700,
@@ -516,7 +516,7 @@ class LowConfidenceScreen extends ConsumerWidget {
     final pillFontSize = isPhone ? 12.0 : 16.0 * scale;
     final descSize = isPhone ? 14.0 : 17.0 * scale;
     final gap16 = isPhone ? 8.0 : 16.0 * scale;
-    final catColor = result.category.color;
+    final catColor = result.displayColor;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -527,11 +527,11 @@ class LowConfidenceScreen extends ConsumerWidget {
           children: [
             Flexible(
               child: Text(
-                '${result.category.name}?',
+                '${result.displayCategoryName}?',
                 style: GoogleFonts.baloo2(
                   fontSize: catSize,
                   fontWeight: FontWeight.w800,
-                  color: catColor,
+                  color: result.displayCategoryColor,
                   height: 1.0,
                 ),
               ),
@@ -562,7 +562,7 @@ class LowConfidenceScreen extends ConsumerWidget {
             maxWidth: isPhone ? double.infinity : 480.0 * scale,
           ),
           child: Text(
-            'Tebakan terbaikku ${result.category.name}, tapi aku belum yakin. Bantu pastikan ya.',
+            'Tebakan terbaikku ${result.displayCategoryName}, tapi aku belum yakin. Bantu pastikan ya.',
             style: GoogleFonts.plusJakartaSans(
               fontSize: descSize,
               fontWeight: FontWeight.w500,
@@ -585,7 +585,7 @@ class LowConfidenceScreen extends ConsumerWidget {
     final entries = rawTop2.isNotEmpty
         ? rawTop2
         : [
-            MapEntry(result.category.name, result.confidence),
+            MapEntry(result.dynamicCategoryName ?? result.category.name, result.confidence),
           ];
 
     return Container(
@@ -667,16 +667,14 @@ class LowConfidenceScreen extends ConsumerWidget {
           height: iconBox,
           padding: EdgeInsets.all(iconBox * 0.15),
           decoration: BoxDecoration(
-            color: isFirst
-                ? catColor.withValues(alpha: 0.12)
-                : const Color(0xFFF7F3FF),
+            color: catColor.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(isPhone ? 9 : 10.0 * scale),
           ),
           child: cat != null
               ? Image.asset(_iconAssetFor(cat), fit: BoxFit.contain)
               : Icon(Icons.category,
                   size: isPhone ? 16 : 18.0 * scale,
-                  color: isFirst ? catColor : AppColors.textMuted),
+                  color: catColor),
         ),
         SizedBox(width: 11 * scale),
         // Right column: row + bar
@@ -701,9 +699,7 @@ class LowConfidenceScreen extends ConsumerWidget {
                     style: GoogleFonts.baloo2(
                       fontSize: pctSize,
                       fontWeight: FontWeight.w800,
-                      color: isFirst
-                          ? const Color(0xFF9A6A00)
-                          : AppColors.textMuted,
+                      color: catColor,
                     ),
                   ),
                 ],
@@ -726,9 +722,7 @@ class LowConfidenceScreen extends ConsumerWidget {
                       child: Container(
                         height: barH,
                         decoration: BoxDecoration(
-                          color: isFirst
-                              ? AppColors.warning
-                              : AppColors.textMuted,
+                          color: catColor,
                           borderRadius: BorderRadius.circular(5),
                         ),
                       ),
@@ -847,7 +841,7 @@ class LowConfidenceScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(999),
         child: InkWell(
           borderRadius: BorderRadius.circular(999),
-          onTap: () {
+          onTap: () async {
             // Mixed-mode "Periksa" context: write the user-confirmed item
             // back into the multi list (confidence 1.0 = user-confirmed
             // ground truth, same semantics as a dataset hit) and return to
@@ -870,7 +864,7 @@ class LowConfidenceScreen extends ConsumerWidget {
               return;
             }
 
-            ref.read(scanProvider.notifier).saveToHistory();
+            await ref.read(scanProvider.notifier).saveToHistory();
             ref
                 .read(sessionProvider.notifier)
                 .addXP(SessionService.xpExistingCategory);
@@ -927,12 +921,10 @@ class LowConfidenceScreen extends ConsumerWidget {
         return 'assets/images/page_5/organik.png';
       case WasteCategory.logam:
         return 'assets/images/page_5/logam.png';
-      case WasteCategory.kaca:
-        return 'assets/images/page_5/auto.png';
       case WasteCategory.residu:
         return 'assets/images/page_5/residu.png';
       case WasteCategory.lainnya:
-        return 'assets/images/page_5/residu.png';
+        return 'assets/images/page_5/auto.png';
     }
   }
 }

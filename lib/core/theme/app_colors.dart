@@ -64,8 +64,6 @@ class AppColors {
 
   // Category colors
   static const Color catPlastik = Color(0xFF4DA3FF);
-  static const Color catPlastikSoft = Color(0xFFEAF4FF);
-  static const Color catPlastikBorder = Color(0xFFD1E7FF);
   static const Color catKertas = Color(0xFFFFB23E);
   static const Color catOrganik = Color(0xFF3AD6A0);
   static const Color catLogam = Color(0xFF7C89A6);

@@ -272,22 +272,31 @@ class RTDETRService {
             // Format: [x1, y1, x2, y2, classId, score]
             final score = row[5];
             if (score < _confidenceThreshold) continue;
-            final classIdx = row[4].toInt();
+            final rawClassIdx = row[4].toInt();
+            if (rawClassIdx == 0) continue; // Drop former Kaca
+            final classIdx = rawClassIdx - 1; // Shift indices (1->0, 2->1, etc.)
+            final mapped = _mapIndexToCategory(classIdx);
             detections.add(_RawDetection(
               x1: row[0], y1: row[1], x2: row[2], y2: row[3],
               classIndex: classIdx,
+              category: mapped.$1,
+              dynamicCategoryName: mapped.$2,
               confidence: score,
             ));
           } else if (cols >= 6) {
             // Format: [x1, y1, x2, y2, score0, score1, ..., scoreN]
             // Class scores start at index 4
-            final classScores = row.sublist(4);
+            final rawClassScores = row.sublist(4);
+            final classScores = rawClassScores.sublist(1); // Drop former Kaca
             final bestIdx = _argmax(classScores);
             final bestScore = classScores[bestIdx];
             if (bestScore < _confidenceThreshold) continue;
+            final mapped = _mapIndexToCategory(bestIdx);
             detections.add(_RawDetection(
               x1: row[0], y1: row[1], x2: row[2], y2: row[3],
               classIndex: bestIdx,
+              category: mapped.$1,
+              dynamicCategoryName: mapped.$2,
               confidence: bestScore,
             ));
           }
@@ -310,9 +319,12 @@ class RTDETRService {
             if (i < scores.length) {
               final score = scores[i];
               if (score < _confidenceThreshold) continue;
+              final mapped = _mapIndexToCategory(i);
               detections.add(_RawDetection(
                 x1: box[0], y1: box[1], x2: box[2], y2: box[3],
-                classIndex: i, // might need adjustment
+                classIndex: i,
+                category: mapped.$1,
+                dynamicCategoryName: mapped.$2,
                 confidence: score,
               ));
             }
@@ -321,9 +333,12 @@ class RTDETRService {
             final bestIdx = _argmax(scores);
             final bestScore = scores[bestIdx];
             if (bestScore < _confidenceThreshold) continue;
+            final mapped = _mapIndexToCategory(bestIdx);
             detections.add(_RawDetection(
               x1: box[0], y1: box[1], x2: box[2], y2: box[3],
               classIndex: bestIdx,
+              category: mapped.$1,
+              dynamicCategoryName: mapped.$2,
               confidence: bestScore,
             ));
           }
@@ -347,8 +362,6 @@ class RTDETRService {
 
     // Convert to ScanResult with cropped image
     return kept.map((d) {
-      final category = _mapIndexToCategory(d.classIndex);
-
       // Step 1: model-space pixels (0.._inputWidth/_inputHeight)
       final mx1 = isNormalized ? d.x1 * _inputWidth : d.x1;
       final my1 = isNormalized ? d.y1 * _inputHeight : d.y1;
@@ -381,11 +394,11 @@ class RTDETRService {
       }
 
       return ScanResult(
-        itemName: 'Sampah ${category.name}',
-        category: category,
+        itemName: d.dynamicCategoryName != null ? 'Sampah ${d.dynamicCategoryName}' : 'Sampah ${d.category.name}',
+        category: d.category,
         confidence: d.confidence,
-        disposalInfo: category.disposalInfo,
-        description: category.subtitle,
+        disposalInfo: d.category.disposalInfo,
+        description: d.category.subtitle,
         boundingBox: Rect.fromPoints(Offset(x1, y1), Offset(x2, y2)),
         croppedImage: croppedBytes,
       );
@@ -456,16 +469,15 @@ class RTDETRService {
     return best;
   }
 
-  WasteCategory _mapIndexToCategory(int index) {
-    // Match the class name order: Kaca=0, Kertas=1, Logam=2, Organik=3, Plastik=4, Residu=5
+  (WasteCategory, String?) _mapIndexToCategory(int index) {
+    // Match the class name order: Kertas=0, Logam=1, Organik=2, Plastik=3, Residu=4
     switch (index) {
-      case 0: return WasteCategory.kaca;
-      case 1: return WasteCategory.kertas;
-      case 2: return WasteCategory.logam;
-      case 3: return WasteCategory.organik;
-      case 4: return WasteCategory.plastik;
-      case 5: return WasteCategory.residu;
-      default: return WasteCategory.lainnya;
+      case 0: return (WasteCategory.kertas, null);
+      case 1: return (WasteCategory.logam, null);
+      case 2: return (WasteCategory.organik, null);
+      case 3: return (WasteCategory.plastik, null);
+      case 4: return (WasteCategory.residu, null);
+      default: return (WasteCategory.lainnya, null);
     }
   }
 
@@ -478,14 +490,39 @@ class RTDETRService {
 }
 
 class _RawDetection {
-  final double x1, y1, x2, y2;
+  final double x1, y1, x2, y2, confidence;
+  final WasteCategory category;
+  final String? dynamicCategoryName;
   final int classIndex;
-  final double confidence;
 
   _RawDetection({
-    required this.x1, required this.y1,
-    required this.x2, required this.y2,
+    required this.x1,
+    required this.y1,
+    required this.x2,
+    required this.y2,
+    required this.confidence,
+    required this.category,
+    this.dynamicCategoryName,
     required this.classIndex,
+  });
+}
+
+class RTDETRBoundingBox {
+  final double y1;
+  final double x1;
+  final double y2;
+  final double x2;
+  final WasteCategory category;
+  final String? dynamicCategoryName;
+  final double confidence;
+
+  RTDETRBoundingBox({
+    required this.y1,
+    required this.x1,
+    required this.y2,
+    required this.x2,
+    required this.category,
+    this.dynamicCategoryName,
     required this.confidence,
   });
 }

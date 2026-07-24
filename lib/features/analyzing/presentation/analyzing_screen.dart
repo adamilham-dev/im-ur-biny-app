@@ -11,6 +11,7 @@ import '../../../core/models/waste_category.dart';
 import '../../../core/providers/scan_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_responsive.dart';
+import '../../../core/providers/local_dataset_provider.dart';
 import '../../../shared/widgets/biny_hero.dart';
 
 /// Screen 12 - Analyzing (AI Agent).
@@ -85,13 +86,14 @@ class _AnalyzingScreenState extends ConsumerState<AnalyzingScreen>
         _hasNavigated = true;
         // Determine if this is a new category or existing. `kaca` is the only
         // "learnable new type" — it's never a user pick, so a confident kaca
-        // result from the AI is the only path that should reach
-        // /conclusion-new. Any of the 5 standard daur categories
+        // Determine if this is a new category or existing.
         // (plastik/kertas/logam/organik/residu) is "existing" →
         // /conclusion-existing. `lainnya` is filtered to /low-confidence
         // earlier and never reaches this branch.
         final result = ref.read(scanResultProvider);
-        final isNewCategory = result?.category == WasteCategory.kaca;
+        final isNewCategory = result?.category == WasteCategory.lainnya &&
+            result?.dynamicCategoryName != null &&
+            result!.dynamicCategoryName!.isNotEmpty;
         if (isNewCategory) {
           context.go('/conclusion-new');
         } else {
@@ -119,9 +121,9 @@ class _AnalyzingScreenState extends ConsumerState<AnalyzingScreen>
         ? notifier.multiResults[reanalyzeIndex]
         : null;
 
-    // Cloud classification via OpenRouter (Gemma) — no on-device
-    // TFLite/RT-DETR. classifyWithGemini (despite the legacy name) routes to
-    // OpenRouterClassifierService.classifyAnalyzing and SKIPS the local
+    // Cloud classification via Gemini — no on-device
+    // TFLite/RT-DETR. classifyWithGemini routes to
+    // GeminiService and SKIPS the local
     // dataset cache so the AI always runs fresh. Returns null if the cloud
     // isn't configured, fails, or the AI answered "lainnya"; in that case the
     // previous on-device result stays in state and the post-classification
@@ -166,13 +168,28 @@ class _AnalyzingScreenState extends ConsumerState<AnalyzingScreen>
         if (isLowConfidence) {
           context.go('/low-confidence');
         } else {
-          // See comment above — kaca is the only "learnable new type", every
-          // other resolved category is "existing".
-          final isNewCategory = result?.category == WasteCategory.kaca;
-          if (isNewCategory) {
+          // "lainnya" (when detected
+          // with high confidence by Gemini) is a new category (custom type).
+          final isNewCategoryCandidate = result?.category == WasteCategory.lainnya &&
+              result?.dynamicCategoryName != null &&
+              result!.dynamicCategoryName!.isNotEmpty;
+              
+          bool isLearned = false;
+          if (isNewCategoryCandidate && result != null) {
+            final dataset = ref.read(localDatasetProvider);
+            isLearned = dataset.allEntries().any((e) {
+              if (e.category != result.category) return false;
+              if (result.category == WasteCategory.lainnya) {
+                return e.itemName?.toLowerCase() == result.itemName?.toLowerCase();
+              }
+              return true; // For kaca, just matching the category means it's learned
+            });
+          }
+
+          if (isNewCategoryCandidate && !isLearned) {
             context.go('/conclusion-new');
           } else {
-            context.go('/conclusion-existing');
+            context.go('/result');
           }
         }
       }

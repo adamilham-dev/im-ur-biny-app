@@ -32,11 +32,27 @@ import '../../detail_item/presentation/detail_item_screen.dart';
 ///   3. Stats card 520×155 (white, r20)
 ///   4. Buttons "Pindai Lagi" + "Selesai" (19px, flex 1)
 ///   5. "Kategori kurang tepat? Koreksi manual" (15px)
-class ResultScreen extends ConsumerWidget {
+class ResultScreen extends ConsumerStatefulWidget {
   const ResultScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ResultScreen> createState() => _ResultScreenState();
+}
+
+class _ResultScreenState extends ConsumerState<ResultScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final result = ref.read(scanResultProvider);
+      if (result != null) {
+        ref.read(bluetoothProvider.notifier).sendCategory(result.category);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final isPortrait = AppResponsive.isPortrait(size);
     final scanResult = ref.watch(scanResultProvider);
@@ -309,20 +325,18 @@ class ResultScreen extends ConsumerWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Container(
-                          width: 8 * scale,
-                          height: 8 * scale,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: result.category.color,
-                          ),
+                        Image.asset(
+                          result.displayIconAsset,
+                          width: 12 * scale,
+                          height: 12 * scale,
+                          fit: BoxFit.contain,
                         ),
-                        SizedBox(width: 8 * scale),
+                        SizedBox(width: 6 * scale),
                         Text.rich(
                           TextSpan(
                             children: [
                               TextSpan(
-                                text: '${result.category.name} ·',
+                                text: '${result.displayCategoryName} ·',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 14 * scale,
                                   fontWeight: FontWeight.w700,
@@ -510,11 +524,11 @@ class ResultScreen extends ConsumerWidget {
           children: [
             Flexible(
               child: Text(
-                result.category.name,
+                result.displayCategoryName,
                 style: GoogleFonts.baloo2(
                   fontSize: catSize,
                   fontWeight: FontWeight.w800,
-                  color: result.category.color,
+                  color: result.displayCategoryColor,
                   height: 1.0,
                 ),
               ),
@@ -589,7 +603,7 @@ class ResultScreen extends ConsumerWidget {
                 style: GoogleFonts.baloo2(
                   fontSize: isPhone ? 18 : 22.0 * scale,
                   fontWeight: FontWeight.w800,
-                  color: result.category.color,
+                  color: result.displayCategoryColor,
                 ),
               ),
             ],
@@ -615,8 +629,8 @@ class ResultScreen extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(999),
                         gradient: LinearGradient(
                           colors: [
-                            result.category.color.withValues(alpha: 0.7),
-                            result.category.color,
+                            result.displayCategoryColor.withValues(alpha: 0.7),
+                            result.displayCategoryColor,
                           ],
                         ),
                       ),
@@ -696,17 +710,22 @@ class ResultScreen extends ConsumerWidget {
   }
 
   /// "Pindai Lagi" — kembali ke kamera live (Phase 0) supaya user bisa
-  /// memotret ulang benda baru. Flag [useGeminiProvider] tetap diset;
-  /// ia akan dikonsumsi [ScanningScreen._runClassification] setelah foto
-  /// baru di-capture & dikonfirmasi.
+  /// memotret ulang benda baru. Flag [useGeminiProvider] di-reset agar
+  /// proses scan ulang selalu dimulai dari model lokal (RT-DETR).
   ///
   /// PENTING: jangan set [rescanProvider] = true di sini — flag itu bikin
   /// scanning_screen skip kamera dan langsung re-run AI di foto lama
   /// (itulah path "scanning ulang" yang ingin dihindari).
-  void _onPindaiLagiTapped(BuildContext context, WidgetRef ref) {
-    ref.read(useGeminiProvider.notifier).state = true;
+  Future<void> _onPindaiLagiTapped(BuildContext context, WidgetRef ref) async {
+    await ref.read(scanProvider.notifier).deleteFromLocalDataset();
+    ref.read(bluetoothProvider.notifier).sendCloseAll();
+    ref.read(scanProvider.notifier).clearResult();
+    ref.read(capturedImageProvider.notifier).state = null;
     ref.read(rescanProvider.notifier).state = false;
-    context.go('/scanning');
+    ref.read(useGeminiProvider.notifier).state = false;
+    if (context.mounted) {
+      context.go('/scanning');
+    }
   }
 
   Widget _buildScanAgainButton(BuildContext context, WidgetRef ref, Size size,
@@ -778,14 +797,15 @@ class ResultScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(999),
         child: InkWell(
           borderRadius: BorderRadius.circular(999),
-          onTap: () {
-            ref.read(scanProvider.notifier).saveToHistory();
+          onTap: () async {
+            await ref.read(scanProvider.notifier).saveToHistory();
             ref
                 .read(sessionProvider.notifier)
                 .addXP(SessionService.xpExistingCategory);
             ref.read(sessionProvider.notifier).addScan();
-            ref.read(bluetoothProvider.notifier).sendCloseAll();
-            context.go('/feedback');
+            if (context.mounted) {
+              context.go('/feedback');
+            }
           },
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),

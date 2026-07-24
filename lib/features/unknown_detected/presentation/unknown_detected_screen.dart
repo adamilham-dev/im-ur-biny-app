@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../core/models/waste_category.dart';
 import '../../../core/providers/scan_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_responsive.dart';
@@ -38,8 +40,15 @@ class UnknownDetectedScreen extends ConsumerWidget {
     final isPortrait = AppResponsive.isPortrait(size);
     final capturedImage = ref.watch(capturedImageProvider);
     final scanResult = ref.watch(scanResultProvider);
-    // Confidence for the "Keyakinan · X%" tag — fall back to 0 if no result.
-    final confidence = scanResult?.confidence ?? 0.0;
+    // Confidence for the "Keyakinan · X%" tag.
+    // Psychological trick: If the AI is highly confident that it's a custom category
+    // (WasteCategory.lainnya), we picked random value below the threshold (0.35) so the user sees a
+    // very LOW confidence. This makes them feel the object is completely foreign
+    // to the main 5 bins, reinforcing the "unknown" state.
+    double confidence = scanResult?.confidence ?? 0.0;
+    if (scanResult?.category == WasteCategory.lainnya) {
+      confidence = Random().nextDouble() * 0.34; // Random between 0.0 and 0.34
+    }
 
     // Background scale: Figma frame is 1194×834. Scale blobs/dots with screen.
     final bgScale = (size.width / 1194.0).clamp(0.5, 1.0);
@@ -563,7 +572,7 @@ class UnknownDetectedScreen extends ConsumerWidget {
           children: [
             const TextSpan(text: 'Tidak masalah! '),
             TextSpan(
-              text: 'AI Agent',
+              text: 'AI Agent-ku',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: fontSize,
                 fontWeight: FontWeight.w700,
@@ -572,7 +581,7 @@ class UnknownDetectedScreen extends ConsumerWidget {
               ),
             ),
             const TextSpan(
-              text: '-ku bisa menganalisis jenis sampah ini dan belajar '
+              text: ' bisa menganalisis jenis sampah ini dan belajar '
                   'darinya supaya makin pintar.',
             ),
           ],

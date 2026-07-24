@@ -48,6 +48,7 @@ class LocalDatasetEntry {
 
   LocalDatasetEntry copyWith({
     WasteCategory? category,
+    String? itemName,
     String? labelSource,
     bool? synced,
   }) {
@@ -55,7 +56,7 @@ class LocalDatasetEntry {
       sha256Hex: sha256Hex,
       pHash: pHash,
       category: category ?? this.category,
-      itemName: itemName,
+      itemName: itemName ?? this.itemName,
       confidence: confidence,
       capturedAt: capturedAt,
       imageFileName: imageFileName,
@@ -306,6 +307,7 @@ class LocalDatasetService {
   Future<void> updateCategoryForImage(
     Uint8List imageBytes, {
     required WasteCategory newCategory,
+    String? itemName,
   }) async {
     if (!_initialized) return;
     final shaHex = sha256.convert(imageBytes).toString();
@@ -315,12 +317,27 @@ class LocalDatasetService {
         LocalDatasetEntry.fromMap(Map<dynamic, dynamic>.from(existing as Map));
     final updated = entry.copyWith(
       category: newCategory,
+      itemName: itemName ?? entry.itemName,
       labelSource: 'human',
       synced: false,
     );
     await _box.put(shaHex, updated.toMap());
     debugPrint('[LocalDataset] corrected $shaHex → ${newCategory.stableId} '
         '(human, will re-sync)');
+  }
+
+  /// Deletes an entry from the local dataset and removes its associated image file.
+  /// Used when the user discards a scan via "Pindai Lagi" after it was saved.
+  Future<void> deleteEntry(Uint8List imageBytes) async {
+    if (!_initialized) return;
+    final shaHex = sha256.convert(imageBytes).toString();
+    final existing = _box.get(shaHex);
+    if (existing != null) {
+      final entry = LocalDatasetEntry.fromMap(Map<dynamic, dynamic>.from(existing as Map));
+      await deleteImageFile(entry);
+      await _box.delete(shaHex);
+      debugPrint('[LocalDataset] deleted entry and image for $shaHex');
+    }
   }
 
   /// Returns the nearest match within [threshold] Hamming bits, or null.
@@ -338,6 +355,11 @@ class LocalDatasetService {
     for (final raw in _box.values) {
       final map = raw as Map<dynamic, dynamic>;
       final entry = LocalDatasetEntry.fromMap(map);
+      
+      // Strict Supervised Learning: Guru (Human/Gemini) validate only
+      // Jangan biarkan murid (Model) menyontek jawaban yang belum disahkan
+      if (entry.labelSource != 'human' && entry.labelSource != 'gemini') continue;
+
       final distance = _hammingDistance(phash, entry.pHash);
       if (distance < bestDistance) {
         bestDistance = distance;
@@ -356,6 +378,12 @@ class LocalDatasetService {
         .map((raw) => LocalDatasetEntry.fromMap(raw as Map<dynamic, dynamic>))
         .toList()
       ..sort((a, b) => b.capturedAt.compareTo(a.capturedAt));
+  }
+
+  /// Watch the underlying Hive box for changes (adds, updates, deletes).
+  Stream<BoxEvent> watch() {
+    if (!_initialized) return const Stream.empty();
+    return _box.watch();
   }
 
   /// Entries not yet synced to Supabase (the outbox). Newest first.

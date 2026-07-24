@@ -7,7 +7,6 @@ enum WasteCategory {
   kertas,
   organik,
   logam,
-  kaca,
   residu,
   lainnya;
 
@@ -32,8 +31,6 @@ enum WasteCategory {
         return 'organik';
       case WasteCategory.logam:
         return 'logam';
-      case WasteCategory.kaca:
-        return 'kaca';
       case WasteCategory.residu:
         return 'residu';
       case WasteCategory.lainnya:
@@ -62,8 +59,6 @@ extension WasteCategoryX on WasteCategory {
         return 'Organik';
       case WasteCategory.logam:
         return 'Logam';
-      case WasteCategory.kaca:
-        return 'Kaca';
       case WasteCategory.residu:
         return 'Residu';
       case WasteCategory.lainnya:
@@ -81,8 +76,8 @@ extension WasteCategoryX on WasteCategory {
         return Icons.eco;
       case WasteCategory.logam:
         return Icons.build;
-      case WasteCategory.kaca:
-        return Icons.local_bar;
+      // case WasteCategory.kaca:
+      //   return Icons.local_bar;
       case WasteCategory.residu:
         return Icons.delete;
       case WasteCategory.lainnya:
@@ -100,8 +95,8 @@ extension WasteCategoryX on WasteCategory {
         return AppColors.catOrganik;
       case WasteCategory.logam:
         return AppColors.catLogam;
-      case WasteCategory.kaca:
-        return AppColors.catKaca;
+      // case WasteCategory.kaca:
+      //   return AppColors.catKaca;
       case WasteCategory.residu:
         return AppColors.catResidu;
       case WasteCategory.lainnya:
@@ -112,19 +107,19 @@ extension WasteCategoryX on WasteCategory {
   Color get softColor {
     switch (this) {
       case WasteCategory.plastik:
-        return AppColors.catPlastikSoft;
+        return AppColors.catPlastik.withValues(alpha: 0.3);
       case WasteCategory.kertas:
-        return AppColors.catKertas.withValues(alpha: 0.15);
+        return AppColors.catKertas.withValues(alpha: 0.3);
       case WasteCategory.organik:
-        return AppColors.catOrganik.withValues(alpha: 0.15);
+        return AppColors.catOrganik.withValues(alpha: 0.3);
       case WasteCategory.logam:
-        return AppColors.catLogam.withValues(alpha: 0.15);
-      case WasteCategory.kaca:
-        return AppColors.catKaca.withValues(alpha: 0.15);
+        return AppColors.catLogam.withValues(alpha: 0.3);
+      // case WasteCategory.kaca:
+      //   return AppColors.catKaca.withValues(alpha: 0.3);
       case WasteCategory.residu:
-        return AppColors.catResidu.withValues(alpha: 0.15);
+        return AppColors.catResidu.withValues(alpha: 0.3);
       case WasteCategory.lainnya:
-        return AppColors.catLainnya.withValues(alpha: 0.15);
+        return AppColors.catLainnya.withValues(alpha: 0.3);
     }
   }
 
@@ -138,12 +133,10 @@ extension WasteCategoryX on WasteCategory {
         return 'Sisa makanan';
       case WasteCategory.logam:
         return 'Kaleng, tutup';
-      case WasteCategory.kaca:
-        return 'Botol, pecahan';
       case WasteCategory.residu:
         return 'Tidak terdaur';
       case WasteCategory.lainnya:
-        return 'Lain-lain';
+        return 'Biar AI tentukan';
     }
   }
 
@@ -157,8 +150,6 @@ extension WasteCategoryX on WasteCategory {
         return 'Masukkan ke tempat sampah organik (hijau)';
       case WasteCategory.logam:
         return 'Masukkan ke tempat daur ulang logam (abu-abu)';
-      case WasteCategory.kaca:
-        return 'Masukkan ke tempat daur ulang kaca (hijau muda)';
       case WasteCategory.residu:
         return 'Masukkan ke tempat sampah residu (merah)';
       case WasteCategory.lainnya:
@@ -189,11 +180,11 @@ extension WasteCategoryX on WasteCategory {
           DisposalStep(title: 'Bilas sisa isi', detail: 'Pastikan kaleng bersih.'),
           DisposalStep(title: 'Masukkan ke tempat Logam', detail: 'Tutup kaleng boleh disertakan.'),
         ];
-      case WasteCategory.kaca:
-        return [
-          DisposalStep(title: 'Bungkus pecahan', detail: 'Gunakan kertas/kardus agar aman.'),
-          DisposalStep(title: 'Masukkan ke tempat Kaca', detail: 'Pisahkan dari sampah lain.'),
-        ];
+      // case WasteCategory.kaca:
+      //   return [
+      //     DisposalStep(title: 'Bungkus pecahan', detail: 'Gunakan kertas/kardus agar aman.'),
+      //     DisposalStep(title: 'Masukkan ke tempat Kaca', detail: 'Pisahkan dari sampah lain.'),
+      //   ];
       case WasteCategory.residu:
         return [
           DisposalStep(title: 'Pastikan bukan daur ulang', detail: 'Cek kembali jenis sampah.'),
@@ -218,8 +209,8 @@ extension WasteCategoryX on WasteCategory {
         return 'Sampah organik bisa diolah jadi kompos yang menyuburkan tanah dalam 2–3 bulan.';
       case WasteCategory.logam:
         return 'Kaleng aluminium bisa didaur ulang tanpa batas dan hemat 95% energi vs produksi baru.';
-      case WasteCategory.kaca:
-        return 'Kaca 100% daur ulang tanpa kehilangan kualitas. Satu botol kaca daur ulang hemat energi untuk menyalakan lampu 4 jam.';
+      // case WasteCategory.kaca:
+      //   return 'Kaca 100% daur ulang tanpa kehilangan kualitas. Satu botol kaca daur ulang hemat energi untuk menyalakan lampu 4 jam.';
       case WasteCategory.residu:
         return 'Sampah residu biasanya dibakar atau ke landfill. Mengurangi residu berarti mengurangi beban lingkungan.';
       case WasteCategory.lainnya:
@@ -246,9 +237,9 @@ extension WasteCategoryX on WasteCategory {
       case 'metal':
       case 'kaleng':
         return WasteCategory.logam;
-      case 'glass':
-      case 'botol kaca':
-        return WasteCategory.kaca;
+      // case 'glass':
+      // case 'botol kaca':
+      //   return WasteCategory.kaca;
       case 'residual':
         return WasteCategory.residu;
       default:

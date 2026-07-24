@@ -12,6 +12,8 @@ import '../../../core/providers/scan_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_responsive.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/providers/category_options_provider.dart';
+import '../../../core/models/category_option.dart';
 import '../../../shared/widgets/biny_hero.dart';
 
 class CameraGuideScreen extends ConsumerStatefulWidget {
@@ -61,8 +63,7 @@ class _CameraGuideScreenState extends ConsumerState<CameraGuideScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final selectedCategory = ref.watch(selectedCategoryProvider);
-    final category = selectedCategory ?? WasteCategory.plastik;
+    final selectedCategoryOption = ref.watch(selectedCategoryProvider);
     final scanMode = ref.watch(scanModeProvider);
     final isMixed = scanMode == 'mixed';
     final size = MediaQuery.of(context).size;
@@ -71,12 +72,14 @@ class _CameraGuideScreenState extends ConsumerState<CameraGuideScreen> {
 
     final stepImages = isMixed ? _mixedStepImages : _singleStepImages;
 
+    final selectedCategoryOpt = selectedCategoryOption ?? CategoryOption.fromWasteCategory(WasteCategory.plastik);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: isPhone && isPortrait
-            ? _buildPhoneLayout(category, isMixed, size, stepImages)
-            : _buildTabletLayout(category, isMixed, size, isPhone, stepImages),
+            ? _buildPhoneLayout(selectedCategoryOpt, isMixed, size, stepImages)
+            : _buildTabletLayout(selectedCategoryOpt, isMixed, size, isPhone, stepImages),
       ),
     );
   }
@@ -209,7 +212,7 @@ class _CameraGuideScreenState extends ConsumerState<CameraGuideScreen> {
   }
 
   Widget _buildPhoneLayout(
-      WasteCategory category, bool isMixed, Size size, List<String> stepImages) {
+      CategoryOption selectedCategoryOption, bool isMixed, Size size, List<String> stepImages) {
     // Structure: outer Column (fills SafeArea) with a scrollable content area
     // in the middle (Expanded) and the Mulai Scan button PINNED at the bottom.
     // This pushes the button to the bottom of the visible area with a gap above
@@ -223,7 +226,7 @@ class _CameraGuideScreenState extends ConsumerState<CameraGuideScreen> {
           const SizedBox(height: 12),
 
           // Mode pill + Ganti (pinned top)
-          isMixed ? _buildMixedPill() : _buildCategoryPill(category),
+          isMixed ? _buildMixedPill() : _buildCategoryPill(selectedCategoryOption),
           const SizedBox(height: 16),
 
           // Scrollable middle: camera preview, mascot, title, step cards.
@@ -379,7 +382,7 @@ class _CameraGuideScreenState extends ConsumerState<CameraGuideScreen> {
     );
   }
 
-  Widget _buildTabletLayout(WasteCategory category, bool isMixed, Size size,
+  Widget _buildTabletLayout(CategoryOption selectedCategoryOption, bool isMixed, Size size,
       bool isPhone, List<String> stepImages) {
     // layout
     //   Outer padding 26px (top/right/bottom/left)
@@ -426,7 +429,7 @@ class _CameraGuideScreenState extends ConsumerState<CameraGuideScreen> {
                   SizedBox(height: isPhone ? 12 : 24),
 
                   // Top: cat-bar
-                  isMixed ? _buildMixedPill() : _buildCategoryPill(category),
+                  isMixed ? _buildMixedPill() : _buildCategoryPill(selectedCategoryOption),
 
                   // Middle: Frame 36 — Expanded
                   //   Column(gap=22, items-center, justify=center).
@@ -614,7 +617,7 @@ class _CameraGuideScreenState extends ConsumerState<CameraGuideScreen> {
     );
   }
 
-  Widget _buildCategoryPill(WasteCategory category) {
+  Widget _buildCategoryPill(CategoryOption option) {
     // cat-bar uses justify-between (Plastik left, Ganti right)
     // cat-tag with border #d1e7ff 1.5px, padding l=12 r=24 py=8
     //   rounded-999, 28×28 icon, "Plastik" 17px Baloo 2 ExtraBold category color
@@ -622,7 +625,7 @@ class _CameraGuideScreenState extends ConsumerState<CameraGuideScreen> {
     //   "Ganti" 19px Baloo 2 Bold #5b3fd6 ls 0.095
     //
     // Icon uses the SAME colorful PNG assets as /category-select so the two
-    // screens match. kaca has no page_5 PNG, so it falls back to Material icon.
+    // screens match.
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -631,20 +634,22 @@ class _CameraGuideScreenState extends ConsumerState<CameraGuideScreen> {
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: const Color(0xFFD1E7FF), width: 1.5),
+            border: Border.all(
+              color: option.color.withValues(alpha: 0.3), 
+              width: 1.5
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildCategoryIcon(category, 28),
+              _buildCategoryIcon(option, 28),
               const SizedBox(width: 10),
               Text(
-                // Match /category-select — "lainnya" is labeled "Auto" there.
-                category == WasteCategory.lainnya ? 'Auto' : category.name,
+                option.name,
                 style: GoogleFonts.baloo2(
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
-                  color: category.color,
+                  color: option.color,
                 ),
               ),
             ],
@@ -691,17 +696,30 @@ class _CameraGuideScreenState extends ConsumerState<CameraGuideScreen> {
         return 'assets/images/page_5/residu.png';
       case WasteCategory.lainnya:
         return 'assets/images/page_5/auto.png';
-      case WasteCategory.kaca:
-        return null;
     }
   }
 
-  Widget _buildCategoryIcon(WasteCategory category, double size) {
-    final asset = _categoryIconAsset(category);
-    if (asset != null) {
-      return Image.asset(asset, width: size, height: size, fit: BoxFit.contain);
-    }
-    return Icon(category.icon, size: size, color: category.color);
+  Widget _buildCategoryIcon(CategoryOption? option, double size) {
+    if (option == null) return const SizedBox.shrink();
+    
+    // Some assets are PNG, but others might be generic fallback
+    final assetPath = option.iconAsset;
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Image.asset(
+        assetPath,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          // Fallback if asset is missing
+          return Icon(
+            Icons.category, // Fallback icon
+            size: size * 0.8,
+            color: option.color,
+          );
+        },
+      ),
+    );
   }
 
   Widget _buildMixedPill() {

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -17,6 +18,7 @@ import '../../../core/providers/app_provider.dart';
 import '../../../core/providers/scan_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_responsive.dart';
+import '../../../core/providers/local_dataset_provider.dart';
 import '../../../shared/widgets/biny_hero.dart';
 
 /// Screen 07 - Photo Capture → Confirm → Scanning → Result
@@ -183,7 +185,7 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
             ? await notifier.classifyMultipleWithGemini(imageBytes)
             : await notifier.classifyMultipleImages(imageBytes);
 
-        _revealDetectionBoxes(results, imageBytes);
+        if (mounted) await _revealDetectionBoxes(results, imageBytes);
         await _holdScanAnimation(analyzeStart);
 
         if (!mounted) return;
@@ -202,7 +204,7 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
             .read(scanProvider.notifier)
             .classifyWithGemini(imageBytes);
 
-        _revealDetectionBoxes([result], imageBytes);
+        if (mounted) await _revealDetectionBoxes([result], imageBytes);
         await _holdScanAnimation(analyzeStart);
 
         if (!mounted) return;
@@ -210,7 +212,26 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
           if (result.confidence <= 0.70) {
             context.go('/low-confidence');
           } else {
-            context.go('/result');
+            final isNewCategoryCandidate = result.category == WasteCategory.lainnya &&
+                result.dynamicCategoryName != null &&
+                result.dynamicCategoryName!.isNotEmpty;
+            bool isLearned = false;
+            if (isNewCategoryCandidate) {
+              final dataset = ref.read(localDatasetProvider);
+              isLearned = dataset.allEntries().any((e) {
+                if (e.category != result.category) return false;
+                if (result.category == WasteCategory.lainnya) {
+                  return e.itemName?.toLowerCase() == result.itemName?.toLowerCase();
+                }
+                return true;
+              });
+            }
+            
+            if (isNewCategoryCandidate && !isLearned) {
+              context.go('/unknown-detected');
+            } else {
+              context.go('/result');
+            }
           }
         } else {
           context.go('/unknown-detected');
@@ -220,7 +241,7 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
         final result =
             await ref.read(scanProvider.notifier).classifyImage(imageBytes);
 
-        _revealDetectionBoxes([result], imageBytes);
+        if (mounted) await _revealDetectionBoxes([result], imageBytes);
         await _holdScanAnimation(analyzeStart);
 
         if (!mounted) return;
@@ -230,9 +251,7 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
         //   ≤ 50%  → /unknown-detected  (model has no real guess)
         //   51-70% → /low-confidence    (model has a guess but isn't sure)
         //   > 70%  → /result            (model is confident)
-        final isUnknown = result == null ||
-            result.confidence <= 0.50 ||
-            result.category == WasteCategory.lainnya;
+        final isUnknown = result == null || result.confidence <= 0.50;
         if (isUnknown) {
           context.go('/unknown-detected');
         } else if (result.confidence <= 0.70) {
@@ -250,7 +269,26 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
           if (!mounted) return;
           context.go('/low-confidence');
         } else {
-          context.go('/result');
+          final isNewCategoryCandidate = result.category == WasteCategory.lainnya &&
+              result.dynamicCategoryName != null &&
+              result.dynamicCategoryName!.isNotEmpty;
+          bool isLearned = false;
+          if (isNewCategoryCandidate) {
+            final dataset = ref.read(localDatasetProvider);
+            isLearned = dataset.allEntries().any((e) {
+              if (e.category != result.category) return false;
+              if (result.category == WasteCategory.lainnya) {
+                return e.itemName?.toLowerCase() == result.itemName?.toLowerCase();
+              }
+              return true;
+            });
+          }
+          
+          if (isNewCategoryCandidate && !isLearned) {
+            context.go('/unknown-detected');
+          } else {
+            context.go('/result');
+          }
         }
       }
     } catch (e) {
@@ -284,38 +322,25 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
   /// Show dashed detection boxes over the captured photo while the scan
   /// animation finishes. No-op when no result carries a bounding box — the
   /// overlay simply never appears and the screen looks exactly as before.
-  void _revealDetectionBoxes(
-      Iterable<ScanResult?> results, Uint8List photoBytes) {
+  Future<void> _revealDetectionBoxes(
+      Iterable<ScanResult?> results, Uint8List photoBytes) async {
     final boxes = [
       for (final r in results)
         if (r?.boundingBox != null) r!.boundingBox!,
     ];
     if (boxes.isEmpty || !mounted) return;
-    final photoSize = _decodePhotoSize(photoBytes);
-    if (photoSize == null) return;
-    setState(() {
-      _detectedBoxes = boxes;
-      _photoPixelSize = photoSize;
-    });
-  }
-
-  /// Pixel dimensions of [bytes]. Header-only JPEG parse first (cheap);
-  /// full decode as fallback for other formats. Null when undecodable —
-  /// callers then skip the box overlay rather than guess a mapping.
-  Size? _decodePhotoSize(Uint8List bytes) {
+    
     try {
-      final info = img.JpegDecoder().startDecode(bytes);
-      if (info != null) {
-        return Size(info.width.toDouble(), info.height.toDouble());
-      }
-      final decoded = img.decodeImage(bytes);
-      if (decoded != null) {
-        return Size(decoded.width.toDouble(), decoded.height.toDouble());
-      }
+      final codec = await ui.instantiateImageCodec(photoBytes);
+      final frame = await codec.getNextFrame();
+      if (!mounted) return;
+      setState(() {
+        _detectedBoxes = boxes;
+        _photoPixelSize = Size(frame.image.width.toDouble(), frame.image.height.toDouble());
+      });
     } catch (e) {
-      debugPrint('ScanningScreen: photo size decode failed: $e');
+      debugPrint('ScanningScreen: failed to decode photo size: $e');
     }
-    return null;
   }
 
   @override
@@ -421,21 +446,6 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
     final radius = AppResponsive.radius(size, 24).clamp(16.0, 24.0);
 
     if (isReady) {
-      // previewSize is reported in LANDSCAPE sensor coordinates (w > h).
-      // CameraPreview rotates itself based on the device orientation, so the
-      // box we give it must match: portrait swaps the dimensions, landscape
-      // (iPad kiosk) keeps them. The old hardcoded portrait swap squashed
-      // the live preview on landscape iPads.
-      final previewSize = controller.value.previewSize!;
-      final orientation = controller.value.lockedCaptureOrientation ??
-          controller.value.deviceOrientation;
-      final previewLandscape = orientation == DeviceOrientation.landscapeLeft ||
-          orientation == DeviceOrientation.landscapeRight;
-      final previewW =
-          previewLandscape ? previewSize.width : previewSize.height;
-      final previewH =
-          previewLandscape ? previewSize.height : previewSize.width;
-
       return Center(
         child: Container(
           width: containerW,
@@ -457,8 +467,10 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
               fit: BoxFit.cover,
               clipBehavior: Clip.antiAlias,
               child: SizedBox(
-                width: previewW,
-                height: previewH,
+                width: 100,
+                height: isPortrait 
+                    ? 100 * controller.value.aspectRatio 
+                    : 100 / controller.value.aspectRatio,
                 child: CameraPreview(controller),
               ),
             ),

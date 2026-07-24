@@ -21,12 +21,15 @@ class GeminiMultiItem {
   /// Normalized bounding box `[y1, x1, y2, x2]` in 0..1, or `null` if Gemini
   /// didn't return a usable box for this item.
   final List<double>? bbox;
+  
+  final String? dynamicCategoryName;
 
   const GeminiMultiItem({
     required this.category,
     required this.confidence,
     required this.reason,
     this.bbox,
+    this.dynamicCategoryName,
   });
 }
 
@@ -179,37 +182,35 @@ class GeminiService {
 
   String _buildPrompt() {
     return '''
-Kamu adalah asisten klasifikasi sampah untuk aplikasi daur ulang Indonesia.
+Kamu adalah asisten ahli klasifikasi sampah untuk aplikasi daur ulang di Indonesia.
 
-Tugasmu: lihat gambar yang diberikan dan tentukan SATU kategori sampah yang paling tepat.
+Tugasmu: Analisis gambar yang diberikan dan tentukan SATU kategori sampah yang paling tepat.
 
-PENTING — WAJIB pilih salah satu dari 6 kategori di bawah. JANGAN PERNAH keluar dari daftar ini:
-- "Plastik"  → botol plastik, kantong plastik, kemasan plastik, atau benda berbahan plastik.
-- "Kertas"   → kardus, koran, kertas tulis, buku, atau benda berbahan kertas/kayu olahan.
-- "Organik"  → sisa makanan, daun, ranting, kayu alami, kulit buah, bahan biodegradable.
-- "Logam"    → kaleng minuman/makanan, besi, aluminium, perkakas, atau benda berbahan logam.
-- "Kaca"     → botol kaca, pecahan kaca, toples, cermin, atau benda berbahan kaca.
-- "Residu"   → popok, tisu bekas, puntung rokok, styrofoam kotor, kabel, elektronik, karet, keramik, atau sampah yang TIDAK bisa didaur ulang.
+PENTING — Pilih salah satu dari 5 KATEGORI UTAMA berikut jika sampah termasuk di dalamnya:
+- "Plastik"  → botol, kantong, kemasan, atau benda berbahan plastik.
+- "Kertas"   → kardus, koran, kertas tulis, buku, atau kayu olahan.
+- "Organik"  → sisa makanan, daun, ranting, kulit buah, atau bahan yang mudah terurai alami.
+- "Logam"    → kaleng minuman/makanan, besi, aluminium, atau benda berbahan logam.
+- "Residu"   → popok, tisu bekas, puntung rokok, styrofoam kotor, atau sampah yang TIDAK bisa didaur ulang.
+
+JIKA sampah tersebut BISA DIDAUR ULANG namun DILUAR 5 kategori utama di atas, maka kamu WAJIB memilih kategori "Lainnya".
+PENTING: Saat memilih "Lainnya", kamu WAJIB menyebutkan jenis sampah spesifiknya di awal bagian alasan. Kamu HANYA BOLEH memilih salah satu dari 6 sub-kategori ini: Kaca, Karet, Elektronik, Tekstil, Minyak, atau B3. JANGAN gunakan nama/kata lain!
 
 ATURAN KHUSUS UNTUK OBJEK NON-SAMPAH:
-Jika gambar menampilkan objek yang BUKAN sampah (mis. meja, kursi, furnitur, kendaraan, orang, hewan, pakaian, sepatu, peralatan rumah), TETAP pilih kategori sampah yang paling masuk akal jika objek tersebut AKAN dibuang/didaur ulang. Contoh:
-- Meja/kursi kayu → "Organik" (kayu alami) atau "Residu" (kalau dicampur bahan lain)
-- Sepatu/sandal → "Residu"
-- Pakaian/kain → "Residu" (kecuali kertas/karton yang jelas)
-- Elektronik/HP → "Residu"
-- Botol/kemasan walaupun masih utuh → sesuaikan dengan bahannya
+Jika gambar menampilkan objek yang BUKAN sampah (mis. meja, kursi, furnitur, kendaraan, orang, hewan, pakaian, sepatu, peralatan rumah), TETAP pilih kategori sampah yang paling masuk akal jika objek tersebut AKAN dibuang/didaur ulang. Contoh kasus:
+1. Jika material utamanya BISA didaur ulang dan masuk 4 kategori utama (Plastik, Kertas, Organik, Logam), pilih kategori tersebut.
+2. Jika material utamanya BISA didaur ulang tapi bukan termasuk 4 kategori tersebut, pilih "Lainnya".
+3. Jika material utamanya TIDAK bisa didaur ulang, pilih "Residu".
 
 Pertimbangan:
 1. Pilih kategori berdasarkan BAHAN utama objek, bukan fungsinya.
-2. Jika bahan utama bisa didaur ulang → masukkan ke kategori bahan tersebut.
-3. Jika bahan utama TIDAK bisa didaur ulang → "Residu".
-4. Berikan confidence 0.0-1.0 yang jujur berdasarkan seberapa yakin dengan bahan dan kecocokan kategori.
+2. Berikan confidence 0.0-1.0 yang jujur berdasarkan seberapa yakin dengan bahan dan kecocokan kategori.
 
-WAJIB jawab HANYA dengan JSON pada format ini, tanpa markdown, tanpa penjelasan tambahan:
+WAJIB jawab HANYA dengan format JSON. Langsung mulai jawabanmu dengan karakter '{' dan akhiri dengan '}', tanpa markdown (```json), tanpa intro, dan tanpa penjelasan tambahan. Contoh:
 {
-  "category": "Plastik|Kertas|Organik|Logam|Kaca|Residu",
+  "category": "Plastik|Kertas|Organik|Logam|Residu|Lainnya",
   "confidence": 0.85,
-  "reason": "Alasan singkat 1 kalimat dalam Bahasa Indonesia mengapa kategori ini dipilih."
+  "reason": "Alasan singkat 1 kalimat dalam Bahasa Indonesia mengapa kategori ini dipilih. Jika kategori Lainnya, sebutkan 1 kata nama kategorinya di awal kalimat (misal: Kaca. Ini adalah botol yang bisa didaur ulang)."
 }
 ''';
   }
@@ -235,20 +236,13 @@ WAJIB jawab HANYA dengan JSON pada format ini, tanpa markdown, tanpa penjelasan 
           .clamp(0.0, 1.0);
       final reason = (json['reason'] as String?)?.trim() ?? '';
 
-      final category = _parseCategory(categoryStr);
+      var category = _parseCategory(categoryStr);
       if (category == null) {
         debugPrint('[Gemini] Unknown category in response: "$categoryStr"');
         return null;
       }
-      // The Gemini path is the "learn a new category" escalation flow
-      // (Analisis dengan AI → /conclusion-new), so we let it return ANY of the
-      // 6 trained categories, including Kaca, as a learnable result. We only
-      // reject `lainnya` (Gemini gave up) so the caller falls back to
-      // /low-confidence instead of presenting "tidak dikenali" as a new type.
-      if (category == WasteCategory.lainnya) {
-        debugPrint('[Gemini] Returned "lainnya" — rejecting (no real guess)');
-        return null;
-      }
+      // Allow 'lainnya' to pass through so the UI can route to /unknown-detected
+      // when Gemini identifies recyclable items outside the 5 main categories.
 
       if (confidence < _confidenceThreshold) {
         debugPrint(
@@ -264,14 +258,31 @@ WAJIB jawab HANYA dengan JSON pada format ini, tanpa markdown, tanpa penjelasan 
         '(${(confidence * 100).toStringAsFixed(1)}%) — $reason',
       );
 
+      String? dynamicName;
+      if (category == WasteCategory.lainnya && reason.isNotEmpty) {
+        final dotIndex = reason.indexOf('.');
+        if (dotIndex != -1) {
+          dynamicName = reason.substring(0, dotIndex).trim();
+        } else {
+          dynamicName = reason.split(' ').first;
+        }
+
+        final correctedCat = WasteCategoryX.fromString(dynamicName);
+        if (correctedCat != null && correctedCat != WasteCategory.lainnya) {
+          category = correctedCat;
+          dynamicName = null;
+        }
+      }
+
       return ScanResult(
-        itemName: _itemNameFor(category),
+        itemName: dynamicName ?? _itemNameFor(category),
         category: category,
         confidence: confidence,
         description: reason.isEmpty
             ? 'Terdeteksi sebagai ${category.name} (via AI cloud).'
             : reason,
         disposalInfo: category.disposalInfo,
+        dynamicCategoryName: dynamicName,
         // Gemini doesn't expose class probabilities — synthesize a small map
         // so the low-confidence UI can still render a top-2 breakdown if
         // the user lands there. The other slot is a flat residual.
@@ -279,6 +290,7 @@ WAJIB jawab HANYA dengan JSON pada format ini, tanpa markdown, tanpa penjelasan 
           category.name: confidence,
           'Lainnya': 1.0 - confidence,
         },
+        isFromGemini: true,
       );
     } catch (e) {
       debugPrint('[Gemini] Failed to parse response: $e');
@@ -289,34 +301,39 @@ WAJIB jawab HANYA dengan JSON pada format ini, tanpa markdown, tanpa penjelasan 
 
   String _buildMultiPrompt() {
     return '''
-Kamu adalah asisten klasifikasi sampah untuk aplikasi daur ulang Indonesia.
+Kamu adalah asisten ahli klasifikasi sampah untuk aplikasi daur ulang di Indonesia.
 
-Tugasmu: lihat gambar yang diberikan dan identifikasi SEMUA objek sampah yang terlihat secara terpisah. Untuk setiap objek, tentukan SATU kategori yang paling tepat DAN berikan bounding box yang menandai posisi objek di gambar.
+Tugasmu: Lihat gambar yang diberikan dan identifikasi SEMUA objek sampah yang terlihat ada apa saja. Untuk setiap objek, tentukan SATU kategori yang paling tepat DAN berikan bounding box yang menandai posisi objek di gambar.
 
-PENTING — setiap objek WAJIB diberikan salah satu dari 6 kategori di bawah. JANGAN PERNAH keluar dari daftar ini:
-- "Plastik"  → botol plastik, kantong plastik, kemasan plastik, atau benda berbahan plastik.
-- "Kertas"   → kardus, koran, kertas tulis, buku, atau benda berbahan kertas/kayu olahan.
-- "Organik"  → sisa makanan, daun, ranting, kayu alami, kulit buah, bahan biodegradable.
-- "Logam"    → kaleng minuman/makanan, besi, aluminium, perkakas, atau benda berbahan logam.
-- "Kaca"     → botol kaca, pecahan kaca, toples, cermin, atau benda berbahan kaca.
-- "Residu"   → popok, tisu bekas, puntung rokok, styrofoam kotor, kabel, elektronik, karet, keramik, atau sampah yang TIDAK bisa didaur ulang.
+PENTING — Pilih salah satu dari 5 KATEGORI UTAMA berikut jika sampah termasuk di dalamnya:
+- "Plastik"  → botol, kantong, kemasan, atau benda berbahan plastik.
+- "Kertas"   → kardus, koran, kertas tulis, buku, atau kayu olahan.
+- "Organik"  → sisa makanan, daun, ranting, kulit buah, atau bahan yang mudah terurai alami.
+- "Logam"    → kaleng minuman/makanan, besi, aluminium, atau benda berbahan logam.
+- "Residu"   → popok, tisu bekas, puntung rokok, styrofoam kotor, atau sampah yang TIDAK bisa didaur ulang.
+
+JIKA objek tersebut BISA DIDAUR ULANG namun BUKAN TERMASUK 5 kategori utama di atas, maka kamu WAJIB memilih kategori "Lainnya" agar tidak memberikan edukasi yang salah.
+PENTING: Saat memilih "Lainnya", kamu WAJIB menyebutkan jenis sampah spesifiknya di awal bagian alasan. Kamu HANYA BOLEH memilih salah satu dari 6 sub-kategori ini: Kaca, Karet, Elektronik, Tekstil, Minyak, atau B3. JANGAN gunakan nama/kata lain!
 
 ATURAN KHUSUS UNTUK OBJEK NON-SAMPAH:
-Jika gambar menampilkan objek yang BUKAN sampah (mis. meja, kursi, furnitur, kendaraan, orang, hewan, pakaian, sepatu, peralatan rumah), TETAP pilih kategori sampah yang paling masuk akal jika objek tersebut AKAN dibuang/didaur ulang.
+Jika gambar menampilkan objek yang BUKAN sampah (mis. meja, kursi, furnitur, kendaraan, orang, hewan, pakaian, sepatu, peralatan rumah), TETAP pilih kategori sampah yang paling masuk akal jika objek tersebut AKAN dibuang/didaur ulang. Contoh kasus:
+1. Jika material utamanya BISA didaur ulang dan masuk 4 kategori utama (Plastik, Kertas, Organik, Logam), pilih kategori tersebut.
+2. Jika material utamanya BISA didaur ulang tapi bukan termasuk 4 kategori tersebut, pilih "Lainnya".
+3. Jika material utamanya TIDAK bisa didaur ulang, pilih "Residu".
 
 Pertimbangan:
-1. Maksimal 5 objek. Jika lebih dari 5, pilih 5 yang paling jelas terlihat.
+1. Tidak ada maksimal objek asalkan wujud keseluruhan masuk tangkapan kamera dan terlihat jelas — jangan anggap tatakan/alas sebagai objek.
 2. Pilih kategori berdasarkan BAHAN utama objek, bukan fungsinya.
 3. Jika TIDAK ada sampah terlihat sama sekali, kembalikan array "items" kosong.
 4. Berikan confidence 0.0-1.0 yang jujur berdasarkan seberapa yakin dengan bahan dan kecocokan kategori.
 5. Setiap objek dihitung terpisah — jangan gabungkan objek serupa menjadi satu entri.
 6. WAJIB berikan "bbox" untuk setiap objek: array 4 angka [y1, x1, y2, x2] yang dinormalisasi ke rentang 0.0-1.0 relatif terhadap ukuran gambar, di mana (0,0) = pojok kiri-atas dan (1,1) = pojok kanan-bawah. y1 = batas atas, x1 = batas kiri, y2 = batas bawah, x2 = batas kanan. Pastikan y2 > y1 dan x2 > x1. Box harus cukup ketat mengelilingi objek (jangan termasuk background luas).
 
-WAJIB jawab HANYA dengan JSON pada format ini, tanpa markdown, tanpa penjelasan tambahan:
+WAJIB jawab HANYA dengan format JSON. Langsung mulai jawabanmu dengan karakter '{' dan akhiri dengan '}', tanpa markdown (```json), tanpa intro, dan tanpa penjelasan tambahan. Contoh:
 {
   "items": [
     {"category": "Plastik", "confidence": 0.92, "reason": "Alasan singkat 1 kalimat dalam Bahasa Indonesia.", "bbox": [0.10, 0.05, 0.85, 0.45]},
-    {"category": "Kertas", "confidence": 0.88, "reason": "Alasan singkat 1 kalimat dalam Bahasa Indonesia.", "bbox": [0.15, 0.55, 0.80, 0.95]}
+    {"category": "Lainnya", "confidence": 0.88, "reason": "Kaca. Ini adalah sampah botol kaca yang bisa didaur ulang khusus.", "bbox": [0.15, 0.55, 0.80, 0.95]}
   ]
 }
 ''';
@@ -352,21 +369,32 @@ WAJIB jawab HANYA dengan JSON pada format ini, tanpa markdown, tanpa penjelasan 
             .clamp(0.0, 1.0);
         final reason = (entry['reason'] as String?)?.trim() ?? '';
 
-        final category = _parseCategory(categoryStr);
+        var category = _parseCategory(categoryStr);
         if (category == null) {
           debugPrint(
               '[Gemini] Skipping unknown category in multi: "$categoryStr"');
           continue;
         }
-        // Multi path mirrors single: accept any of the 6 trained categories
-        // (incl. Kaca as a learnable type) but skip "lainnya" so uncertain
-        // items don't surface as a "Tidak dikenali" card.
-        if (category == WasteCategory.lainnya) {
-          debugPrint('[Gemini] Skipping "lainnya" item in multi');
-          continue;
-        }
+        // Allow 'lainnya' in multi-item path so uncertain or out-of-category
+        // items can surface properly in the multi-result UI.
 
         final bbox = _parseBbox(entry['bbox']);
+
+        String? dynamicName;
+        if (category == WasteCategory.lainnya && reason.isNotEmpty) {
+          final dotIndex = reason.indexOf('.');
+          if (dotIndex != -1) {
+            dynamicName = reason.substring(0, dotIndex).trim();
+          } else {
+            dynamicName = reason.split(' ').first;
+          }
+
+          final correctedCat = WasteCategoryX.fromString(dynamicName);
+          if (correctedCat != null && correctedCat != WasteCategory.lainnya) {
+            category = correctedCat;
+            dynamicName = null;
+          }
+        }
 
         results.add(GeminiMultiItem(
           category: category,
@@ -375,6 +403,7 @@ WAJIB jawab HANYA dengan JSON pada format ini, tanpa markdown, tanpa penjelasan 
               ? 'Terdeteksi sebagai ${category.name} (via AI cloud).'
               : reason,
           bbox: bbox,
+          dynamicCategoryName: dynamicName,
         ));
       }
 
@@ -428,8 +457,6 @@ WAJIB jawab HANYA dengan JSON pada format ini, tanpa markdown, tanpa penjelasan 
         return 'Sampah Organik';
       case WasteCategory.logam:
         return 'Sampah Logam';
-      case WasteCategory.kaca:
-        return 'Sampah Kaca';
       case WasteCategory.residu:
         return 'Sampah Residu';
       case WasteCategory.lainnya:

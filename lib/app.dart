@@ -237,12 +237,6 @@ class ImUrBinyApp extends ConsumerWidget {
     final router = ref.watch(_routerProvider);
     ref.watch(bluetoothProvider);
 
-    ref.listen(scanResultProvider, (previous, next) {
-      if (next != null) {
-        ref.read(bluetoothProvider.notifier).sendCategory(next.category);
-      }
-    });
-
     return MaterialApp.router(
       title: "I'm ur Biny",
       debugShowCheckedModeBanner: false,

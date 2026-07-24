@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
+import 'package:google_fonts/google_fonts.dart';
+import '../../../core/models/category_option.dart';
 import '../../../core/models/waste_category.dart';
 import '../../../core/providers/app_provider.dart';
+import '../../../core/providers/category_options_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_responsive.dart';
 import '../../../core/theme/app_typography.dart';
@@ -120,8 +122,10 @@ class CategorySelectScreen extends ConsumerWidget {
                   child: SizedBox(
                     width: isPhone ? size.width : 1100,
                     child: SingleChildScrollView(
-                      child: SizedBox(
-                        height: constraints.maxHeight,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: constraints.maxHeight,
+                        ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -158,7 +162,7 @@ class CategorySelectScreen extends ConsumerWidget {
                                             GestureDetector(
                                               onTap: () {
                                                 ref.read(selectedCategoryProvider.notifier).state =
-                                                    WasteCategory.lainnya;
+                                                    CategoryOption.fromWasteCategory(WasteCategory.lainnya);
                                                 context.go('/camera-guide');
                                               },
                                               child: Container(
@@ -203,7 +207,7 @@ class CategorySelectScreen extends ConsumerWidget {
                                         GestureDetector(
                                           onTap: () {
                                             ref.read(selectedCategoryProvider.notifier).state =
-                                                WasteCategory.lainnya;
+                                                CategoryOption.fromWasteCategory(WasteCategory.lainnya);
                                             context.go('/camera-guide');
                                           },
                                           child: Container(
@@ -226,36 +230,10 @@ class CategorySelectScreen extends ConsumerWidget {
                             // Grid
                             Padding(
                               padding: EdgeInsets.symmetric(
-                                horizontal: isPhone ? 20 : 0,
+                                horizontal: isPhone ? 20 : 32,
                               ),
                               child: Center(
-                                child: SizedBox(
-                                  width: isPhone ? null : 1077.0,
-                                  child: GridView.count(
-                                    crossAxisCount: isPhone ? 2 : 3,
-                                    shrinkWrap: true,
-                                    physics: const NeverScrollableScrollPhysics(),
-                                    mainAxisSpacing: isPhone ? 12 : 24,
-                                    crossAxisSpacing: isPhone ? 12 : 24,
-                                    childAspectRatio: isPhone ? 2.2 : (343 / 128),
-                                    children: _categories
-                                        .map((cat) => _CategoryCard(
-                                              iconAsset: cat.iconAsset,
-                                              name: cat.name,
-                                              description: cat.description,
-                                              color: cat.color,
-                                              isPhone: isPhone,
-                                              onTap: () {
-                                                ref
-                                                    .read(selectedCategoryProvider
-                                                        .notifier)
-                                                    .state = cat.wasteCategory;
-                                                context.go('/camera-guide');
-                                              },
-                                            ))
-                                        .toList(),
-                                  ),
-                                ),
+                                child: _buildGrid(size, isPhone ? 2 : 3, isPhone: isPhone, ref: ref, context: context),
                               ),
                             ),
                           ],
@@ -271,127 +249,106 @@ class CategorySelectScreen extends ConsumerWidget {
       ),
     );
   }
-}
 
-class _CategoryData {
-  final String iconAsset;
-  final String name;
-  final String description;
-  final Color color;
-  final WasteCategory wasteCategory;
+  Widget _buildGrid(Size size, int cols, {required bool isPhone, required WidgetRef ref, required BuildContext context}) {
+    final gap = isPhone ? 10.0 : 22.0;
+    final rows = <Widget>[];
+    final categoryOptions = ref.watch(categoryOptionsProvider);
+    for (var r = 0; r < categoryOptions.length; r += cols) {
+      final rowChildren = <Widget>[];
+      for (var c = 0; c < cols; c++) {
+        final idx = r + c;
+        final isMissing = idx >= categoryOptions.length;
+        rowChildren.add(
+          Expanded(
+            child: isMissing
+                ? const SizedBox.shrink()
+                : Padding(
+                    padding: EdgeInsets.only(
+                      right: c < cols - 1 ? gap : 0,
+                      bottom: gap,
+                    ),
+                    child: _buildCard(
+                      size,
+                      categoryOptions[idx],
+                      isPhone: isPhone,
+                      onTap: () {
+                        ref.read(selectedCategoryProvider.notifier).state = categoryOptions[idx];
+                        context.go('/camera-guide');
+                      },
+                    ),
+                  ),
+          ),
+        );
+      }
+      rows.add(Row(children: rowChildren));
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: rows,
+    );
+  }
 
-  const _CategoryData({
-    required this.iconAsset,
-    required this.name,
-    required this.description,
-    required this.color,
-    required this.wasteCategory,
-  });
-}
+  Widget _buildCard(Size size, CategoryOption category, {required bool isPhone, required VoidCallback onTap}) {
+    final catColor = category.color;
 
-const _categories = <_CategoryData>[
-  _CategoryData(
-    iconAsset: 'assets/images/page_5/plastik.png',
-    name: 'Plastik',
-    description: 'Botol, kemasan',
-    color: AppColors.catPlastik,
-    wasteCategory: WasteCategory.plastik,
-  ),
-  _CategoryData(
-    iconAsset: 'assets/images/page_5/kertas.png',
-    name: 'Kertas',
-    description: 'Kardus, koran',
-    color: AppColors.catKertas,
-    wasteCategory: WasteCategory.kertas,
-  ),
-  _CategoryData(
-    iconAsset: 'assets/images/page_5/organik.png',
-    name: 'Organik',
-    description: 'Sisa makanan',
-    color: AppColors.catOrganik,
-    wasteCategory: WasteCategory.organik,
-  ),
-  _CategoryData(
-    iconAsset: 'assets/images/page_5/logam.png',
-    name: 'Logam',
-    description: 'Kaleng, tutup',
-    color: AppColors.catLogam,
-    wasteCategory: WasteCategory.logam,
-  ),
-  _CategoryData(
-    iconAsset: 'assets/images/page_5/residu.png',
-    name: 'Residu',
-    description: 'Tidak terdaur',
-    color: AppColors.catResidu,
-    wasteCategory: WasteCategory.residu,
-  ),
-  _CategoryData(
-    iconAsset: 'assets/images/page_5/auto.png',
-    name: 'Auto',
-    description: 'Biar AI tentukan',
-    color: AppColors.catLainnya,
-    wasteCategory: WasteCategory.lainnya,
-  ),
-];
-
-class _CategoryCard extends StatelessWidget {
-  final String iconAsset;
-  final String name;
-  final String description;
-  final Color color;
-  final bool isPhone;
-  final VoidCallback onTap;
-
-  const _CategoryCard({
-    required this.iconAsset,
-    required this.name,
-    required this.description,
-    required this.color,
-    required this.isPhone,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final iconSize = isPhone ? 38.0 : 84.0;
-    final fontSize = isPhone ? 15.0 : 26.0;
-    final descSize = isPhone ? 11.0 : 15.0;
+    final iconBox = isPhone ? 48.0 : 84.0;
+    final nameSize = isPhone ? 16.0 : 26.0;
+    final subSize = isPhone ? 11.0 : 15.0;
+    final padH = isPhone ? 12.0 : 24.0;
+    final padV = isPhone ? 14.0 : 22.0;
+    final gap = isPhone ? 10.0 : 18.0;
+    final radius = isPhone ? 20.0 : 32.0;
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: isPhone ? 10 : 24,
-          vertical: isPhone ? 10 : 22,
-        ),
+        padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(isPhone ? 18 : 24),
+          borderRadius: BorderRadius.circular(radius),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
+              color: AppColors.primary.withValues(alpha: 0.08),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
         child: Row(
           children: [
-            Image.asset(iconAsset,
-                width: iconSize, height: iconSize, fit: BoxFit.contain),
-            SizedBox(width: isPhone ? 10 : 20),
+            Container(
+              width: iconBox,
+              height: iconBox,
+              padding: EdgeInsets.all(iconBox * 0.08),
+              child: Image.asset(
+                category.iconAsset,
+                fit: BoxFit.contain,
+              ),
+            ),
+            SizedBox(width: gap),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(name,
-                      style: AppTypography.headingBold.copyWith(
-                          fontSize: fontSize, color: AppColors.textPrimary)),
-                  const SizedBox(height: 2),
-                  Text(description,
-                      style: AppTypography.bodyBoldStatic.copyWith(
-                          fontSize: descSize, color: color)),
+                  Text(
+                    category.name,
+                    style: GoogleFonts.baloo2(
+                      fontSize: nameSize,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    category.subtitle,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: subSize,
+                      fontWeight: FontWeight.w700,
+                      color: catColor,
+                    ),
+                  ),
                 ],
               ),
             ),

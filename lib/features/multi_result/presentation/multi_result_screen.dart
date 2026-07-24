@@ -16,8 +16,9 @@ import '../../../core/theme/app_responsive.dart';
 import '../../../shared/widgets/biny_hero.dart';
 import '../../../shared/widgets/detection_box_view.dart';
 import '../../../core/providers/bluetooth_provider.dart';
+import '../../../core/providers/category_options_provider.dart';
 import '../../detail_item/presentation/detail_item_screen.dart';
-
+import '../../../core/providers/local_dataset_provider.dart';
 /// Pixel-perfect "09 · Multi-Result (Mixed Waste)"
 /// in 1194×834 frame (landscape iPad).
 ///
@@ -66,9 +67,24 @@ class _MultiResultScreenState extends ConsumerState<MultiResultScreen> {
   List<ScanResult> get results => ref.read(scanProvider.notifier).multiResults;
 
   _ResultType _resultType(ScanResult r) {
-    if (r.confidence <= _unsureThreshold || r.category == WasteCategory.lainnya) {
+    if (r.confidence <= _unsureThreshold || (r.category == WasteCategory.lainnya && r.dynamicCategoryName == null)) {
       return _ResultType.unknown;
     }
+    
+    // Check if it's a new custom category that hasn't been learned yet
+    if (r.category == WasteCategory.lainnya && r.dynamicCategoryName != null && r.dynamicCategoryName!.isNotEmpty) {
+      final dataset = ref.read(localDatasetProvider);
+      bool isLearned = dataset.allEntries().any((e) {
+        if (e.category != r.category) return false;
+        return e.itemName?.toLowerCase() == r.itemName?.toLowerCase();
+      });
+      // If the AI found a custom category but user hasn't saved it to the dataset,
+      // force it to remain "unknown" so they go through the AI Analysis UX.
+      if (!isLearned) {
+        return _ResultType.unknown;
+      }
+    }
+
     if (r.confidence <= _readableThreshold) return _ResultType.unsure;
     return _ResultType.readable;
   }
@@ -300,8 +316,8 @@ class _MultiResultScreenState extends ConsumerState<MultiResultScreen> {
           DetectionBox(
             rectPx: results[i].boundingBox!,
             label:
-                '${results[i].category.name} · ${results[i].confidence.toStringAsFixed(2)}',
-            color: results[i].category.color,
+                '${results[i].displayCategoryName} · ${results[i].confidence.toStringAsFixed(2)}',
+            color: results[i].displayCategoryColor,
             highlighted: false,
           ),
     ];
@@ -540,7 +556,7 @@ class _MultiResultScreenState extends ConsumerState<MultiResultScreen> {
                             height: 8 * scale,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: selected.category.color,
+                              color: selected.displayCategoryColor,
                             ),
                           ),
                           SizedBox(width: 8 * scale),
@@ -548,7 +564,7 @@ class _MultiResultScreenState extends ConsumerState<MultiResultScreen> {
                             TextSpan(
                               children: [
                                 TextSpan(
-                                  text: '${selected.category.name} ·',
+                                  text: '${selected.displayCategoryName} ·',
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 14 * scale,
                                     fontWeight: FontWeight.w700,
@@ -757,12 +773,12 @@ class _MultiResultScreenState extends ConsumerState<MultiResultScreen> {
                         height: isPhone ? 6 : 8,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: selected.category.color,
+                          color: selected.displayCategoryColor,
                         ),
                       ),
                       SizedBox(width: isPhone ? 4 : 6),
                       Text(
-                        '${selected.category.name}  ${selected.confidence.toStringAsFixed(2)}',
+                        '${selected.displayCategoryName}  ${selected.confidence.toStringAsFixed(2)}',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: isPhone ? 10 : 13,
                           fontWeight: FontWeight.w700,
@@ -1186,18 +1202,35 @@ class _MultiResultScreenState extends ConsumerState<MultiResultScreen> {
     final chevSz = isPhone ? 18.0 : 22.0 * scale;
     final cardR = isPhone ? 16.0 : 20.0 * scale;
 
-    final categoryImageAsset = _categoryImageAsset(cat);
+    final categoryImageAsset = result.displayIconAsset;
 
     return GestureDetector(
       onTap: () {
         if (type == _ResultType.unknown) {
-          // Unknown items get a fresh AI analysis on their CROP (not the
-          // whole scene). Sets the reanalyze index so /analyzing knows which
-          // item to replace; the other items in the list stay untouched.
-          // After the AI finishes, /analyzing calls updateMultiResult(index)
-          // and returns here with just this item resolved.
-          ref.read(reanalyzeMultiIndexProvider.notifier).state = index;
-          ctx.go('/analyzing');
+          if (result.category == WasteCategory.lainnya && result.dynamicCategoryName != null && result.dynamicCategoryName!.isNotEmpty) {
+            // Already identified by Gemini as a custom category, just hasn't been saved yet.
+            // Directly save it and reveal without navigating away.
+            final captured = ref.read(capturedImageProvider);
+            final bytesToSave = result.croppedImage ?? captured;
+            if (bytesToSave != null) {
+              ref.read(localDatasetProvider).saveEntry(
+                bytesToSave,
+                category: result.category,
+                itemName: result.itemName,
+                confidence: result.confidence,
+                labelSource: 'gemini',
+              ).then((_) {
+                // Rebuild the UI so _resultType re-evaluates isLearned to true
+                if (mounted) {
+                  setState(() {});
+                }
+              });
+            }
+          } else {
+            // Truly unknown (e.g. from RT-DETR), needs fresh AI analysis on its crop.
+            ref.read(reanalyzeMultiIndexProvider.notifier).state = index;
+            ctx.go('/analyzing');
+          }
         } else if (type == _ResultType.unsure) {
           // "Periksa": unsure items (51-70%) go to /low-confidence so the
           // user can confirm ("Ya, Benar") or correct ("Koreksi") this item.
@@ -1250,28 +1283,17 @@ class _MultiResultScreenState extends ConsumerState<MultiResultScreen> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: cat.color.withValues(alpha: 0.5),
+                    color: result.displayCategoryColor.withValues(alpha: 0.5),
                     width: 2,
                   ),
                 ),
                 child: ClipOval(
-                  child: categoryImageAsset != null
-                      ? Image.asset(
-                          categoryImageAsset,
-                          width: imgSz,
-                          height: imgSz,
-                          fit: BoxFit.contain,
-                        )
-                      : Container(
-                          color: cat.color.withValues(alpha: 0.12),
-                          child: Center(
-                            child: Icon(
-                              cat.icon,
-                              size: imgSz * 0.5,
-                              color: cat.color,
-                            ),
-                          ),
-                        ),
+                  child: Image.asset(
+                    categoryImageAsset,
+                    width: imgSz,
+                    height: imgSz,
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
             SizedBox(width: gap),
@@ -1344,7 +1366,7 @@ class _MultiResultScreenState extends ConsumerState<MultiResultScreen> {
                     style: GoogleFonts.baloo2(
                       fontSize: pctFS,
                       fontWeight: FontWeight.w800,
-                      color: cat.color,
+                      color: result.displayCategoryColor,
                       height: 1.0,
                     ),
                   ),
@@ -1358,9 +1380,9 @@ class _MultiResultScreenState extends ConsumerState<MultiResultScreen> {
                         child: LinearProgressIndicator(
                           value: result.confidence.clamp(0.0, 1.0),
                           minHeight: barH,
-                          backgroundColor: cat.color.withValues(alpha: 0.18),
+                          backgroundColor: result.displayCategoryColor.withValues(alpha: 0.18),
                           valueColor:
-                              AlwaysStoppedAnimation<Color>(cat.color),
+                              AlwaysStoppedAnimation<Color>(result.displayCategoryColor),
                         ),
                       ),
                     ),
@@ -1383,24 +1405,7 @@ class _MultiResultScreenState extends ConsumerState<MultiResultScreen> {
     );
   }
 
-  String? _categoryImageAsset(WasteCategory cat) {
-    switch (cat) {
-      case WasteCategory.plastik:
-        return 'assets/images/page_5/plastik.png';
-      case WasteCategory.kertas:
-        return 'assets/images/page_5/kertas.png';
-      case WasteCategory.organik:
-        return 'assets/images/page_5/organik.png';
-      case WasteCategory.logam:
-        return 'assets/images/page_5/logam.png';
-      case WasteCategory.residu:
-        return 'assets/images/page_5/residu.png';
-      case WasteCategory.kaca:
-        return null;
-      case WasteCategory.lainnya:
-        return 'assets/images/page_5/auto.png';
-    }
-  }
+
 
   /// Card title
   /// - readable → result.itemName
@@ -1421,7 +1426,7 @@ class _MultiResultScreenState extends ConsumerState<MultiResultScreen> {
     final pct = (r.confidence * 100).round();
     switch (type) {
       case _ResultType.readable:
-        return '${r.category.subtitle.toLowerCase()} · 1 item';
+        return '${r.displayCategoryName} · 1 item';
       case _ResultType.unknown:
         return 'Belum ada di dataset · keyakinan $pct%';
       case _ResultType.unsure:
@@ -1609,7 +1614,7 @@ class _MultiResultScreenState extends ConsumerState<MultiResultScreen> {
         borderRadius: BorderRadius.circular(999),
         child: InkWell(
           borderRadius: BorderRadius.circular(999),
-          onTap: () {
+          onTap: () async {
             // Kembali ke kamera live (Phase 0) supaya user bisa memotret
             // ulang benda baru — sama seperti ResultScreen's "Pindai Lagi".
             // Flag [useGeminiProvider] dikonsumsi [ScanningScreen] setelah
@@ -1619,9 +1624,14 @@ class _MultiResultScreenState extends ConsumerState<MultiResultScreen> {
             // PENTING: jangan set [rescanProvider] = true — itu bikin
             // scanning_screen skip kamera dan re-run AI di foto lama
             // (path "scanning ulang" yang ingin dihindari).
-            ref.read(useGeminiProvider.notifier).state = true;
+            await ref.read(scanProvider.notifier).deleteFromLocalDataset();
+            ref.read(bluetoothProvider.notifier).sendCloseAll();
+            ref.read(scanProvider.notifier).clearResult();
+            ref.read(capturedImageProvider.notifier).state = null;
             ref.read(rescanProvider.notifier).state = false;
-            ctx.go('/scanning');
+            if (ctx.mounted) {
+              ctx.go('/scanning');
+            }
           },
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
@@ -1678,7 +1688,6 @@ class _MultiResultScreenState extends ConsumerState<MultiResultScreen> {
             ref
                 .read(scanProvider.notifier)
                 .saveMultiToLocalDataset(results);
-            ref.read(bluetoothProvider.notifier).sendCloseAll();
             ctx.go('/feedback');
           },
           child: Padding(

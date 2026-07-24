@@ -274,7 +274,7 @@ class IdleScreen extends StatelessWidget {
                   right: 0,
                   child: Center(
                     child: Text(
-                      'Biny Interactive Display · Future of AI Waste Sorting',
+                      'Biny Interactive Display · The Future of AI Waste Sorting',
                       style: AppTypography.captionStatic.copyWith(
                         fontSize: isPhone ? 9 : 13,
                       ),

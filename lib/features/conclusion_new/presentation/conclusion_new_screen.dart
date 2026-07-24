@@ -8,7 +8,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/models/scan_result.dart';
 import '../../../core/models/waste_category.dart';
 import '../../../core/providers/scan_provider.dart';
-import '../../../core/providers/session_provider.dart';
 import '../../../core/services/session_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_responsive.dart';
@@ -32,11 +31,27 @@ import '../../../core/providers/bluetooth_provider.dart';
 ///      + description
 ///   3. Dataset chip 520×74 (white, r18) with "+25 XP" pill
 ///   4. Buttons "Koreksi" (#EDE8FF drop-shadow) + "Lanjutkan" (#7C5CFC)
-class ConclusionNewScreen extends ConsumerWidget {
+class ConclusionNewScreen extends ConsumerStatefulWidget {
   const ConclusionNewScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ConclusionNewScreen> createState() => _ConclusionNewScreenState();
+}
+
+class _ConclusionNewScreenState extends ConsumerState<ConclusionNewScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final result = ref.read(scanResultProvider);
+      if (result != null) {
+        ref.read(bluetoothProvider.notifier).sendCategory(result.category);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final isPortrait = AppResponsive.isPortrait(size);
     final scanResult = ref.watch(scanResultProvider);
@@ -198,7 +213,7 @@ class ConclusionNewScreen extends ConsumerWidget {
     final pad = 15.0 * scale;
     final cardRadius = 32.0 * scale;
     final innerRadius = 22.0 * scale;
-    final catColor = result.category.color;
+    final catColor = result.displayColor;
 
     return Container(
       width: isPhone ? null : cardSize,
@@ -304,7 +319,7 @@ class ConclusionNewScreen extends ConsumerWidget {
                           height: 8 * scale,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: catColor,
+                            color: result.displayCategoryColor,
                           ),
                         ),
                         SizedBox(width: 8 * scale),
@@ -312,7 +327,7 @@ class ConclusionNewScreen extends ConsumerWidget {
                           TextSpan(
                             children: [
                               TextSpan(
-                                text: '${result.category.name} ·',
+                                text: '${result.displayCategoryName} ·',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 14 * scale,
                                   fontWeight: FontWeight.w700,
@@ -522,7 +537,7 @@ class ConclusionNewScreen extends ConsumerWidget {
     final descSize = isPhone ? 14.0 : 17.0 * scale;
     final badgeSize = isPhone ? 11.0 : 14.0 * scale;
     final gap16 = isPhone ? 8.0 : 16.0 * scale;
-    final catColor = result.category.color;
+    final catColor = result.displayColor;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -543,11 +558,11 @@ class ConclusionNewScreen extends ConsumerWidget {
           children: [
             Flexible(
               child: Text(
-                result.category.name,
+                result.displayCategoryName,
                 style: GoogleFonts.baloo2(
                   fontSize: catSize,
                   fontWeight: FontWeight.w800,
-                  color: catColor,
+                  color: result.displayCategoryColor,
                   height: 1.0,
                 ),
               ),
@@ -615,7 +630,7 @@ class ConclusionNewScreen extends ConsumerWidget {
     final subSize = isPhone ? 11.0 : 13.0 * scale;
     final xpSize = isPhone ? 14.0 : 17.0 * scale;
     final iconBox = isPhone ? 36.0 : 46.0 * scale;
-    final catColor = result.category.color;
+    final catColor = result.displayColor;
 
     return Container(
       width: cardW,
@@ -637,13 +652,13 @@ class ConclusionNewScreen extends ConsumerWidget {
           Container(
             width: iconBox,
             height: iconBox,
+            padding: EdgeInsets.all(isPhone ? 6 : 8 * scale),
             decoration: BoxDecoration(
               color: catColor.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(isPhone ? 10 : 13.0 * scale),
             ),
-            child: Icon(
-              Icons.storage_rounded,
-              size: (isPhone ? 18 : 24) * scale,
+            child: Image.asset(
+              result.displayIconAsset,
               color: catColor,
             ),
           ),
@@ -665,7 +680,7 @@ class ConclusionNewScreen extends ConsumerWidget {
                 ),
                 SizedBox(height: 1),
                 Text(
-                  'Folder baru "${result.category.name}" tersimpan',
+                  'Folder baru "${result.displayCategoryName}" tersimpan',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: subSize,
                     fontWeight: FontWeight.w600,
@@ -749,8 +764,11 @@ class ConclusionNewScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(999),
         child: InkWell(
           borderRadius: BorderRadius.circular(999),
-          onTap: () =>
-              context.go('/manual-correction', extra: '/conclusion-new'),
+          onTap: () {
+            // NOTE: We do NOT saveToHistory here anymore.
+            // We only save when the user clicks 'Selesai' in dataset_saved_screen.
+            context.go('/manual-correction', extra: '/conclusion-new');
+          },
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
             child: Center(
@@ -799,10 +817,6 @@ class ConclusionNewScreen extends ConsumerWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(999),
           onTap: () {
-            ref.read(scanProvider.notifier).saveToHistory();
-            ref.read(sessionProvider.notifier).addXP(SessionService.xpNewCategory);
-            ref.read(sessionProvider.notifier).addScan();
-            ref.read(bluetoothProvider.notifier).sendCloseAll();
             context.go('/dataset-saved');
           },
           child: Padding(

@@ -3,9 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../core/models/category_option.dart';
+import '../../../core/models/scan_result.dart';
 import '../../../core/models/waste_category.dart';
 import '../../../core/providers/app_provider.dart';
+import '../../../core/providers/category_options_provider.dart';
 import '../../../core/providers/scan_provider.dart';
+import '../../../core/providers/session_provider.dart';
+import '../../../core/services/session_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_responsive.dart';
 import '../../../shared/widgets/biny_hero.dart';
@@ -116,8 +121,8 @@ class DatasetSavedScreen extends ConsumerWidget {
           SafeArea(
             child: Center(
               child: isPortrait
-                  ? _buildPortrait(context, size, ref, detectedCategory)
-                  : _buildLandscape(context, size, ref, detectedCategory),
+                  ? _buildPortrait(context, size, ref, scanResult, detectedCategory)
+                  : _buildLandscape(context, size, ref, scanResult, detectedCategory),
             ),
           ),
         ],
@@ -155,7 +160,7 @@ class DatasetSavedScreen extends ConsumerWidget {
   // PORTRAIT (phone)
   // ─────────────────────────────────────────────────────────────────────
   Widget _buildPortrait(BuildContext context, Size size, WidgetRef ref,
-      WasteCategory detectedCategory) {
+      ScanResult? scanResult, WasteCategory detectedCategory) {
     final isPhone = AppResponsive.isPhone(size);
 
     return SingleChildScrollView(
@@ -167,6 +172,7 @@ class DatasetSavedScreen extends ConsumerWidget {
         context,
         size,
         ref,
+        scanResult,
         detectedCategory,
         isPortrait: true,
         isPhone: isPhone,
@@ -178,7 +184,7 @@ class DatasetSavedScreen extends ConsumerWidget {
   // LANDSCAPE (iPad) — Figma exact layout (centered column w:751)
   // ─────────────────────────────────────────────────────────────────────
   Widget _buildLandscape(BuildContext context, Size size, WidgetRef ref,
-      WasteCategory detectedCategory) {
+      ScanResult? scanResult, WasteCategory detectedCategory) {
     final availW = size.width - 92.0 - 92.0;
     final scale = (availW / 1010.0).clamp(0.5, 1.0);
 
@@ -192,6 +198,7 @@ class DatasetSavedScreen extends ConsumerWidget {
           context,
           size,
           ref,
+          scanResult,
           detectedCategory,
           isPortrait: false,
           isPhone: false,
@@ -208,6 +215,7 @@ class DatasetSavedScreen extends ConsumerWidget {
     BuildContext context,
     Size size,
     WidgetRef ref,
+    ScanResult? scanResult,
     WasteCategory detectedCategory, {
     required bool isPortrait,
     required bool isPhone,
@@ -237,16 +245,16 @@ class DatasetSavedScreen extends ConsumerWidget {
         SizedBox(height: gap16),
 
         // 4. Subtitle
-        _buildSubtitle(detectedCategory, scale: scale, isPhone: isPhone),
+        _buildSubtitle(scanResult, detectedCategory, scale: scale, isPhone: isPhone),
         SizedBox(height: gap24),
 
         // 5. Category chips row
-        _buildCategoryChips(size, detectedCategory,
+        _buildCategoryChips(size, ref, scanResult, detectedCategory,
             scale: scale, isPhone: isPhone),
         SizedBox(height: gap16),
 
         // 6. Recognition count
-        _buildRecognitionCount(detectedCategory, scale: scale, isPhone: isPhone),
+        _buildRecognitionCount(ref, scanResult, detectedCategory, scale: scale, isPhone: isPhone),
         SizedBox(height: gap24),
 
         // 7. Buttons
@@ -340,10 +348,11 @@ class DatasetSavedScreen extends ConsumerWidget {
   // "Kategori baru [Cat] (cat-colored bold) sudah masuk ke pengetahuan Biny
   //  — lain kali langsung dikenali."
   // ─────────────────────────────────────────────────────────────────────
-  Widget _buildSubtitle(WasteCategory detectedCategory,
+  Widget _buildSubtitle(ScanResult? scanResult, WasteCategory detectedCategory,
       {double scale = 1.0, bool isPhone = false}) {
     final fontSize = isPhone ? 14.0 : 18.0 * scale;
-    final catColor = detectedCategory.color;
+    final catColor = scanResult?.displayColor ?? detectedCategory.color;
+    final catName = scanResult?.dynamicCategoryName ?? detectedCategory.name;
 
     return ConstrainedBox(
       constraints: BoxConstraints(
@@ -360,7 +369,7 @@ class DatasetSavedScreen extends ConsumerWidget {
           children: [
             const TextSpan(text: 'Kategori baru '),
             TextSpan(
-              text: detectedCategory.name,
+              text: catName,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: fontSize,
                 fontWeight: FontWeight.w700,
@@ -378,29 +387,41 @@ class DatasetSavedScreen extends ConsumerWidget {
       ),
     );
   }
+  List<CategoryOption> _visibleCategories(WidgetRef ref, ScanResult? scanResult, WasteCategory detected) {
+    final options = ref.watch(categoryOptionsProvider).toList();
 
-  /// Categories shown in the chip row.
-  ///
-  /// Base = the 5 user-selectable categories from /category-select
-  /// (Plastik, Kertas, Organik, Logam, Residu). When the AI detects a
-  /// category that ISN'T one of those and isn't `lainnya` (the
-  /// "Tidak dikenali" placeholder — never shown as a chip), it's appended so
-  /// the count can grow from 5 → 6+ as Biny "learns" new types. In practice
-  /// the current classifier never emits a category outside this set, so the
-  /// count stays at 5.
-  List<WasteCategory> _visibleCategories(WasteCategory detected) {
-    const base = [
-      WasteCategory.plastik,
-      WasteCategory.kertas,
-      WasteCategory.organik,
-      WasteCategory.logam,
-      WasteCategory.residu,
-    ];
-    final list = [...base];
-    if (detected != WasteCategory.lainnya && !base.contains(detected)) {
-      list.add(detected);
+    // If it's a new custom category from Gemini that hasn't been saved yet, add it manually
+    if (scanResult != null && scanResult.category == WasteCategory.lainnya && scanResult.dynamicCategoryName != null) {
+      final customName = scanResult.dynamicCategoryName!;
+      final alreadyExists = options.any((opt) => opt.name == customName);
+      if (!alreadyExists) {
+        options.add(CategoryOption.custom(customName));
+      }
     }
-    return list;
+
+    // Move detected to the front
+    CategoryOption? activeOpt;
+    if (scanResult != null && scanResult.category == WasteCategory.lainnya && scanResult.dynamicCategoryName != null) {
+      final idx = options.indexWhere((opt) => opt.name == scanResult.dynamicCategoryName);
+      if (idx != -1) {
+        activeOpt = options.removeAt(idx);
+      } else {
+        // If it's not in the provider yet (because it's not saved to Hive until 'Selesai'),
+        // create a temporary option so it still appears visually.
+        activeOpt = CategoryOption.custom(scanResult.dynamicCategoryName!);
+      }
+    } else {
+      final idx = options.indexWhere((opt) => opt.baseCategory == detected && !opt.isCustom);
+      if (idx != -1) {
+        activeOpt = options.removeAt(idx);
+      }
+    }
+
+    if (activeOpt != null) {
+      options.insert(0, activeOpt);
+    }
+    
+    return options;
   }
 
   // ─────────────────────────────────────────────────────────────────────
@@ -411,9 +432,9 @@ class DatasetSavedScreen extends ConsumerWidget {
   //           + 0/6/18 rgba(91,63,214,0.08), + "BARU" pill bg cat color,
   //           text 11px ExtraBold Plus Jakarta Sans #063 tracking 0.4
   // ─────────────────────────────────────────────────────────────────────
-  Widget _buildCategoryChips(Size size, WasteCategory detected,
+  Widget _buildCategoryChips(Size size, WidgetRef ref, ScanResult? scanResult, WasteCategory detected,
       {double scale = 1.0, bool isPhone = false}) {
-    final categories = _visibleCategories(detected);
+    final categories = _visibleCategories(ref, scanResult, detected);
 
     final gap = isPhone ? 6.0 : 12.0 * scale;
 
@@ -421,11 +442,18 @@ class DatasetSavedScreen extends ConsumerWidget {
       alignment: WrapAlignment.center,
       spacing: gap,
       runSpacing: gap,
-      children: categories.map((cat) {
-        final isActive = cat == detected;
+      children: categories.map((catOpt) {
+        bool isActive = false;
+        if (scanResult != null && scanResult.category == WasteCategory.lainnya && scanResult.dynamicCategoryName != null) {
+          isActive = catOpt.name == scanResult.dynamicCategoryName;
+        } else {
+          isActive = catOpt.baseCategory == detected && !catOpt.isCustom;
+        }
+
         return _buildChip(
-          cat,
+          catOpt,
           isActive: isActive,
+          scanResult: scanResult,
           scale: scale,
           isPhone: isPhone,
         );
@@ -433,13 +461,14 @@ class DatasetSavedScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildChip(WasteCategory cat,
-      {required bool isActive, double scale = 1.0, bool isPhone = false}) {
+  Widget _buildChip(CategoryOption catOpt,
+      {required bool isActive, ScanResult? scanResult, double scale = 1.0, bool isPhone = false}) {
     final padH = isPhone ? 10.0 : 18.0 * scale;
     final padV = isPhone ? 6.0 : 11.0 * scale;
     final dotSize = isPhone ? 9.0 : 11.0 * scale;
     final textSize = isPhone ? 12.0 : 16.0 * scale;
-    final catColor = cat.color;
+    final catColor = (isActive && scanResult != null) ? scanResult.displayColor : catOpt.color;
+    final catName = catOpt.name;
 
     return Container(
       padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
@@ -473,17 +502,15 @@ class DatasetSavedScreen extends ConsumerWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: dotSize,
-            height: dotSize,
-            decoration: BoxDecoration(
-              color: catColor,
-              shape: BoxShape.circle,
-            ),
+          Image.asset(
+            (isActive && scanResult != null) ? scanResult.displayIconAsset : catOpt.iconAsset,
+            width: isPhone ? 16 : 22 * scale,
+            height: isPhone ? 16 : 22 * scale,
+            fit: BoxFit.contain,
           ),
           SizedBox(width: 8 * scale),
           Text(
-            cat.name,
+            catName,
             style: GoogleFonts.baloo2(
               fontSize: textSize,
               fontWeight: FontWeight.w700,
@@ -535,10 +562,10 @@ class DatasetSavedScreen extends ConsumerWidget {
   // Logam, Residu). Could grow to 6+ if a future classifier emits a category
   // outside that set, but currently stays at 5.
   // ─────────────────────────────────────────────────────────────────────
-  Widget _buildRecognitionCount(WasteCategory detectedCategory,
+  Widget _buildRecognitionCount(WidgetRef ref, ScanResult? scanResult, WasteCategory detectedCategory,
       {double scale = 1.0, bool isPhone = false}) {
     final fontSize = isPhone ? 12.0 : 15.0 * scale;
-    final count = _visibleCategories(detectedCategory).length;
+    final count = _visibleCategories(ref, scanResult, detectedCategory).length;
 
     return Text.rich(
       TextSpan(
@@ -635,9 +662,13 @@ class DatasetSavedScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(999),
         child: InkWell(
           borderRadius: BorderRadius.circular(999),
-          onTap: () {
-            ref.read(rescanProvider.notifier).state = true;
-            context.go('/mode-select');
+          onTap: () async {
+            ref.read(bluetoothProvider.notifier).sendCloseAll();
+            ref.read(scanProvider.notifier).clearResult();
+            ref.read(capturedImageProvider.notifier).state = null;
+            ref.read(rescanProvider.notifier).state = false;
+            ref.read(useGeminiProvider.notifier).state = false;
+            context.go('/scanning');
           },
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
@@ -687,9 +718,13 @@ class DatasetSavedScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(999),
         child: InkWell(
           borderRadius: BorderRadius.circular(999),
-          onTap: () {
-            ref.read(bluetoothProvider.notifier).sendCloseAll();
-            context.go('/feedback');
+          onTap: () async {
+            await ref.read(scanProvider.notifier).saveToHistory();
+            ref.read(sessionProvider.notifier).addXP(SessionService.xpNewCategory);
+            ref.read(sessionProvider.notifier).addScan();
+            if (context.mounted) {
+              context.go('/feedback');
+            }
           },
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),

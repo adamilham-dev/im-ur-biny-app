@@ -66,7 +66,7 @@ assets/models/rtdetr_best_sim.onnx
 biny.html
 screen*.png
 tools/
-trashscan.iml
+imurbiny.iml
 
 # AI agent instruction files — local only, not for the repo
 .claude/

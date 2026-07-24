@@ -32,7 +32,7 @@ class UserSession {
   }
 
   int get uniqueCategoryCount {
-    return scanHistory.map((r) => r.category).toSet().length;
+    return scanHistory.map((r) => r.dynamicCategoryName ?? r.category.name).toSet().length;
   }
 
   double get averageConfidence {

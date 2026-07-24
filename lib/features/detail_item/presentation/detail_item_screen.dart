@@ -179,14 +179,14 @@ class DetailItemScreen extends ConsumerWidget {
     final gap8 = isPhone ? 8.0 : 8.0 * scale;
     final imgR = isPhone ? 12.0 : 14.0 * scale;
 
-    final catAsset = _categoryImageAsset(cat);
+    final catAsset = result.displayIconAsset;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         // Category icon — matches category-select page exactly
         // (uses the same PNG illustrations from assets/images/page_5/)
-        catAsset != null
+        catAsset.isNotEmpty
             ? Image.asset(
                 catAsset,
                 width: imgSz,
@@ -540,24 +540,6 @@ class DetailItemScreen extends ConsumerWidget {
     );
   }
 
-  String? _categoryImageAsset(WasteCategory cat) {
-    switch (cat) {
-      case WasteCategory.plastik:
-        return 'assets/images/page_5/plastik.png';
-      case WasteCategory.kertas:
-        return 'assets/images/page_5/kertas.png';
-      case WasteCategory.organik:
-        return 'assets/images/page_5/organik.png';
-      case WasteCategory.logam:
-        return 'assets/images/page_5/logam.png';
-      case WasteCategory.residu:
-        return 'assets/images/page_5/residu.png';
-      case WasteCategory.kaca:
-        return null;
-      case WasteCategory.lainnya:
-        return 'assets/images/page_5/auto.png';
-    }
-  }
 
   int _calcXP(ScanResult result) {
     if (result.isCorrected) return 2;

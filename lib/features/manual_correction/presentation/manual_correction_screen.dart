@@ -3,7 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../core/models/category_option.dart';
+import '../../../core/models/scan_result.dart';
 import '../../../core/models/waste_category.dart';
+import '../../../core/providers/app_provider.dart';
+import '../../../core/providers/category_options_provider.dart';
 import '../../../core/providers/scan_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_responsive.dart';
@@ -34,15 +38,7 @@ class ManualCorrectionScreen extends ConsumerStatefulWidget {
 
 class _ManualCorrectionScreenState
     extends ConsumerState<ManualCorrectionScreen> {
-  WasteCategory? _selectedCategory;
-
-  static const _categoryOrder = [
-    WasteCategory.plastik,
-    WasteCategory.kertas,
-    WasteCategory.organik,
-    WasteCategory.logam,
-    WasteCategory.residu,
-  ];
+  CategoryOption? _selectedCategory;
 
   bool _isPhone(Size s) => s.shortestSide < 600;
 
@@ -103,9 +99,9 @@ class _ManualCorrectionScreenState
                 ),
                 child: isPortrait
                     ? _buildPortrait(
-                        context, size, aiCategory, aiConfidence)
+                        context, size, scanResult, aiCategory, aiConfidence)
                     : _buildLandscape(
-                        context, size, aiCategory, aiConfidence),
+                        context, size, scanResult, aiCategory, aiConfidence),
               ),
             ),
           ),
@@ -118,26 +114,28 @@ class _ManualCorrectionScreenState
   // PORTRAIT
   // ────────────────────────────────────────────────
   Widget _buildPortrait(BuildContext context, Size size,
-      WasteCategory aiCategory, double aiConfidence) {
+      ScanResult? scanResult, WasteCategory aiCategory, double aiConfidence) {
     final isPhone = _isPhone(size);
     final cols = isPhone ? 2 : 3;
 
+    final userInitialChoice = ref.watch(selectedCategoryProvider);
+
     return Column(
       children: [
-        _buildTopBar(context, size, aiCategory, aiConfidence,
+        _buildTopBar(context, size, scanResult, aiCategory, aiConfidence,
             isPortrait: true),
         SizedBox(height: isPhone ? 8 : 12),
         _buildBinyBubble(size),
         if (isPhone) ...[
           const SizedBox(height: 8),
-          _buildAiGuessChip(size, aiCategory, aiConfidence),
+          _buildAiGuessChip(size, scanResult, aiCategory, aiConfidence),
         ],
         SizedBox(height: isPhone ? 10 : 14),
         Expanded(
           child: SingleChildScrollView(
             child: Column(
               children: [
-                _buildGrid(size, cols, aiCategory, isPhone: isPhone),
+                _buildGrid(size, cols, aiCategory, userInitialChoice: userInitialChoice, isPhone: isPhone),
                 SizedBox(height: isPhone ? 14 : 20),
                 _buildButtons(context, size),
                 const SizedBox(height: 16),
@@ -153,20 +151,22 @@ class _ManualCorrectionScreenState
   // LANDSCAPE
   // ────────────────────────────────────────────────
   Widget _buildLandscape(BuildContext context, Size size,
-      WasteCategory aiCategory, double aiConfidence) {
+      ScanResult? scanResult, WasteCategory aiCategory, double aiConfidence) {
     final isPhone = _isPhone(size);
     final cols = isPhone ? 2 : 3;
 
+    final userInitialChoice = ref.watch(selectedCategoryProvider);
+
     return Column(
       children: [
-        _buildTopBar(context, size, aiCategory, aiConfidence,
+        _buildTopBar(context, size, scanResult, aiCategory, aiConfidence,
             isPortrait: false),
         SizedBox(height: AppResponsive.rs(size, 24).clamp(16.0, 28.0)),
         _buildBinyBubble(size),
         SizedBox(height: AppResponsive.rs(size, 28).clamp(20.0, 36.0)),
         Expanded(
           child: Center(
-            child: _buildGrid(size, cols, aiCategory, isPhone: isPhone),
+            child: _buildGrid(size, cols, aiCategory, userInitialChoice: userInitialChoice, isPhone: isPhone),
           ),
         ),
         SizedBox(height: AppResponsive.rs(size, 20).clamp(14.0, 24.0)),
@@ -176,17 +176,18 @@ class _ManualCorrectionScreenState
   }
 
   // ────────────────────────────────────────────────
-  // GRID — Figma: 3 cols × 2 rows, gap 22, w:1073
+  // GRID — Figma: 3 cols × n rows, gap 22, w:1073 -> scrollable ke atas dan ke bawah
   // ────────────────────────────────────────────────
   Widget _buildGrid(Size size, int cols, WasteCategory? aiCategory,
-      {required bool isPhone}) {
+      {required CategoryOption? userInitialChoice, required bool isPhone}) {
     final gap = isPhone ? 10.0 : 22.0;
     final rows = <Widget>[];
-    for (var r = 0; r < _categoryOrder.length; r += cols) {
+    final categoryOptions = ref.watch(categoryOptionsProvider).where((c) => c.baseCategory != WasteCategory.lainnya || c.isCustom).toList();
+    for (var r = 0; r < categoryOptions.length; r += cols) {
       final rowChildren = <Widget>[];
       for (var c = 0; c < cols; c++) {
         final idx = r + c;
-        final isMissing = idx >= _categoryOrder.length;
+        final isMissing = idx >= categoryOptions.length;
         // Pad incomplete trailing rows with empty Expanded slots so
         // real cards keep their natural 1/cols width (Figma: 3×2 grid).
         // Without this, a 5-item grid stretches the last 2 cards to 1/2
@@ -202,8 +203,8 @@ class _ManualCorrectionScreenState
                     ),
                     child: _buildCard(
                       size,
-                      _categoryOrder[idx],
-                      isAiGuess: _categoryOrder[idx] == aiCategory,
+                      categoryOptions[idx],
+                      isUserChoice: categoryOptions[idx] == userInitialChoice,
                       isPhone: isPhone,
                     ),
                   ),
@@ -222,7 +223,7 @@ class _ManualCorrectionScreenState
   // TOP BAR
   // ────────────────────────────────────────────────
   Widget _buildTopBar(BuildContext context, Size size,
-      WasteCategory aiCategory, double aiConfidence,
+      ScanResult? scanResult, WasteCategory aiCategory, double aiConfidence,
       {required bool isPortrait}) {
     final isPhone = _isPhone(size);
 
@@ -286,7 +287,7 @@ class _ManualCorrectionScreenState
           ),
         ),
         // AI Guess badge (tablet/landscape) — right aligned
-        if (!isPhone) _buildAiGuessBadge(size, aiCategory, aiConfidence),
+        if (!isPhone) _buildAiGuessBadge(size, scanResult, aiCategory, aiConfidence),
       ],
     );
   }
@@ -295,7 +296,12 @@ class _ManualCorrectionScreenState
   // AI GUESS UI — uses actual category PNG illustration (matches Figma imgImage10)
   // ────────────────────────────────────────────────
   Widget _buildAiGuessBadge(
-      Size size, WasteCategory aiCategory, double aiConfidence) {
+      Size size, ScanResult? scanResult, WasteCategory aiCategory, double aiConfidence) {
+    
+    final label = (aiCategory == WasteCategory.lainnya && scanResult?.dynamicCategoryName != null)
+        ? scanResult!.dynamicCategoryName!
+        : aiCategory.name;
+
     return Container(
       padding: const EdgeInsets.only(
           left: 10, right: 16, top: 10, bottom: 10),
@@ -317,7 +323,7 @@ class _ManualCorrectionScreenState
             width: 42,
             height: 42,
             child: Image.asset(
-              _iconAssetFor(aiCategory),
+              _iconAssetFor(aiCategory, scanResult),
               fit: BoxFit.contain,
             ),
           ),
@@ -327,7 +333,7 @@ class _ManualCorrectionScreenState
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'TEBAKAN AI',
+                'TEBAKAN BINY',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
@@ -336,7 +342,7 @@ class _ManualCorrectionScreenState
                 ),
               ),
               Text(
-                '${aiCategory.name} · ${(aiConfidence * 100).toStringAsFixed(0)}%',
+                '$label · ${(aiConfidence * 100).toStringAsFixed(0)}%',
                 style: GoogleFonts.baloo2(
                   fontSize: 17,
                   fontWeight: FontWeight.w700,
@@ -352,7 +358,12 @@ class _ManualCorrectionScreenState
 
   /// Compact chip shown on phone below the Biny bubble.
   Widget _buildAiGuessChip(
-      Size size, WasteCategory aiCategory, double aiConfidence) {
+      Size size, ScanResult? scanResult, WasteCategory aiCategory, double aiConfidence) {
+    
+    final label = (aiCategory == WasteCategory.lainnya && scanResult?.dynamicCategoryName != null)
+        ? scanResult!.dynamicCategoryName!
+        : aiCategory.name;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -370,16 +381,16 @@ class _ManualCorrectionScreenState
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
-            width: 28,
-            height: 28,
+            width: 32,
+            height: 32,
             child: Image.asset(
-              _iconAssetFor(aiCategory),
+              _iconAssetFor(aiCategory, scanResult),
               fit: BoxFit.contain,
             ),
           ),
           const SizedBox(width: 8),
           Text(
-            'TEBAKAN AI',
+            'TEBAKAN BINY',
             style: GoogleFonts.plusJakartaSans(
               fontSize: 10,
               fontWeight: FontWeight.w800,
@@ -389,7 +400,7 @@ class _ManualCorrectionScreenState
           ),
           const SizedBox(width: 6),
           Text(
-            '${aiCategory.name} · ${(aiConfidence * 100).toStringAsFixed(0)}%',
+            '$label · ${(aiConfidence * 100).toStringAsFixed(0)}%',
             style: GoogleFonts.baloo2(
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -401,25 +412,12 @@ class _ManualCorrectionScreenState
     );
   }
 
-  /// Maps category to PNG illustration asset (matches Figma's 84×84 image
-  /// illustrations used in cat/* cards). Same set as detail_item_screen.
-  String _iconAssetFor(WasteCategory category) {
-    switch (category) {
-      case WasteCategory.plastik:
-        return 'assets/images/page_5/plastik.png';
-      case WasteCategory.kertas:
-        return 'assets/images/page_5/kertas.png';
-      case WasteCategory.organik:
-        return 'assets/images/page_5/organik.png';
-      case WasteCategory.logam:
-        return 'assets/images/page_5/logam.png';
-      case WasteCategory.kaca:
-        return 'assets/images/page_5/auto.png';
-      case WasteCategory.residu:
-        return 'assets/images/page_5/residu.png';
-      case WasteCategory.lainnya:
-        return 'assets/images/page_5/residu.png';
+  /// Maps category to PNG illustration asset.
+  String _iconAssetFor(WasteCategory category, ScanResult? scanResult) {
+    if (category == WasteCategory.lainnya && scanResult?.dynamicCategoryName != null) {
+      return CategoryOption.custom(scanResult!.dynamicCategoryName!).iconAsset;
     }
+    return CategoryOption.fromWasteCategory(category).iconAsset;
   }
 
   // ────────────────────────────────────────────────
@@ -507,8 +505,8 @@ class _ManualCorrectionScreenState
   // ────────────────────────────────────────────────
   // CARD — Figma: 343×128 r32 px24/22 + 84×84 icon box + name 26 + subtitle 15
   // ────────────────────────────────────────────────
-  Widget _buildCard(Size size, WasteCategory category,
-      {required bool isAiGuess, required bool isPhone}) {
+  Widget _buildCard(Size size, CategoryOption category,
+      {required bool isUserChoice, required bool isPhone}) {
     final isSelected = _selectedCategory == category;
     final catColor = category.color;
 
@@ -553,7 +551,7 @@ class _ManualCorrectionScreenState
                   height: iconBox,
                   padding: EdgeInsets.all(iconBox * 0.08),
                   child: Image.asset(
-                    _iconAssetFor(category),
+                    category.iconAsset,
                     fit: BoxFit.contain,
                   ),
                 ),
@@ -585,12 +583,12 @@ class _ManualCorrectionScreenState
                   ),
                 ),
                 // Spacer for badge/checkmark on right
-                if (isAiGuess && !isSelected || isSelected)
+                if (isUserChoice && !isSelected || isSelected)
                   SizedBox(width: chkSize + 8),
               ],
             ),
-            // "TEBAKAN AI" pill (top right) — only when AI guess and not selected
-            if (isAiGuess && !isSelected)
+            // Tag pill (top right) — only for User initial choice
+            if (isUserChoice && !isSelected)
               Positioned(
                 top: 0,
                 right: 0,
@@ -602,7 +600,7 @@ class _ManualCorrectionScreenState
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
-                    isPhone ? 'AI' : 'TEBAKAN AI',
+                    isPhone ? 'KAMU' : 'TEBAKAN KAMU',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: isPhone ? 9 : 10,
                       fontWeight: FontWeight.w800,
@@ -718,17 +716,18 @@ class _ManualCorrectionScreenState
               borderRadius: BorderRadius.circular(999),
               onTap: _selectedCategory != null
                   ? () async {
+                      // Cek apakah kategori yang dipilih berbeda dengan prediksi awal
+                      final originalResult = ref.read(scanResultProvider);
+                      final isDifferent = originalResult != null &&
+                          _selectedCategory!.baseCategory !=
+                              originalResult.category;
+
                       await ref
                           .read(scanProvider.notifier)
                           .correctResult(_selectedCategory!);
-                      // Persist the corrected category to the on-device
-                      // dataset. correctResult updates an existing entry
-                      // in-place if one was already saved; this call covers
-                      // the case where the user opened manual correction
-                      // straight from /result (no prior saveToHistory).
-                      await ref
-                          .read(scanProvider.notifier)
-                          .saveCorrectedToLocalDataset();
+                      // NOTE: We do NOT saveCorrectedToLocalDataset here anymore.
+                      // We wait until the user presses 'Selesai' on the dataset-saved screen.
+                      
                       // Mixed-mode "Periksa" context: write the corrected
                       // item back into the multi list (confidence 1.0 =
                       // user-confirmed ground truth) and return to
@@ -754,7 +753,13 @@ class _ManualCorrectionScreenState
                         if (context.mounted) context.go('/multi-result');
                         return;
                       }
-                      if (context.mounted) context.go('/feedback');
+                      if (context.mounted) {
+                        if (isDifferent) {
+                          context.go('/dataset-saved');
+                        } else {
+                          context.go('/feedback');
+                        }
+                      }
                     }
                   : null,
               child: Opacity(
@@ -826,7 +831,7 @@ class _ManualCorrectionScreenState
             children: [
               const TextSpan(text: 'Butuh bantuan? Yuk coba tanya '),
               TextSpan(
-                text: 'AI Agent ku',
+                text: 'AI Agent-ku',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: fontSize,
                   fontWeight: FontWeight.w800,
